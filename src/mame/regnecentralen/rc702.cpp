@@ -431,4 +431,4 @@ ROM_END
 /* Driver */
 
 //    YEAR  NAME   PARENT  COMPAT  MACHINE  INPUT  CLASS        INIT        COMPANY           FULLNAME         FLAGS
-COMP( 1979, rc702, 0,      0,      rc702,   rc702, rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo", MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
+COMP( 1979, rc702, 0,      0,      rc702,   rc702, rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo", /* MACHINE_NOT_WORKING | */ MACHINE_SUPPORTS_SAVE )
