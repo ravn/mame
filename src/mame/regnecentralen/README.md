@@ -17,18 +17,25 @@ The RC750 Partner/RC759 Piccoline was their 16-bit machine based on 80186, with 
 
 ## RC702: Getting started
 
-For now, copy '*.rom' from a clone of https://github.com/ringgaard/rc700 to `mame/roms/rc702` and copy `cp roa375.rom roa375.ic66`.
+For now, copy '*.rom' from a clone of https://github.com/ringgaard/rc700 to `mame/roms/rc702` and copy `cp roa375.rom roa375.ic66`.  It also contain two IMD images that MAME supposedly understands.
 
-Now build MAME and run it similar to:
+Now build MAME using something like (-j10 requires a modern machine):
 
 ```sh
-./mame rc702 -window -skip_gameinfo 
+make SUBTARGET=regnecentralen SOURCES=src/mame/regnecentralen/rc702.cpp TOOLS=1 DEBUG=1 -j 10
 ```
 
-You should get a yellow screen saying "***NO PROGRAM OR LINEPROG" which is the ROM saying it cannot find a boot sector on the floppy.
+and run it similar to:
+
+```sh
+./regnecentralen rc702 -debug -window -skip_gameinfo -nothrottle -flop1 ../rc700/autoload.imd 
+```
+
+You should get a yellow screen saying either "** NO PROGRAM OR LINEPROG" which is the ROM saying it cannot find a boot sector on the floppy, or "** BAD DISKETTE" which mean that the sanity check on the diskette read failed.
 
 
 ## References:
 
-* https://ddhf.dk/wiki/RC700_Piccolo
-* 
+* Variuos materials: https://ddhf.dk/wiki/RC700_Piccolo
+* Technical manual, not searchable:  https://ddhf.dk/w/images/5/5b/RC702_Tech_Man.pdf 
+
