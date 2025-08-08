@@ -123,7 +123,7 @@ K051960_CB_MEMBER(bottom9_state::sprite_callback)
 
 	// bit 4 = priority over zoom (0 = have priority)
 	// bit 5 = priority over B (1 = have priority)
-	*priority = 0;
+	*priority = GFX_PMASK_4;
 	if ( *color & 0x10) *priority |= GFX_PMASK_1;
 	if (~*color & 0x20) *priority |= GFX_PMASK_2;
 
@@ -154,19 +154,19 @@ K051316_CB_MEMBER(bottom9_state::zoom_callback)
 
 uint32_t bottom9_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	m_k052109->tilemap_update();
-
 	// note: FIX layer is not used
-	bitmap.fill(m_layer_colorbase[1], cliprect);
+	bitmap.fill(m_layer_colorbase[1] * 16, cliprect);
 	screen.priority().fill(0, cliprect);
 
-//  if (m_video_enable)
+	if (m_video_enable)
 	{
 		m_k051316->zoom_draw(screen, bitmap, cliprect, 0, 1);
-		m_k052109->tilemap_draw(screen, bitmap, cliprect, 2, 0, 2);
+		m_k052109->tilemap_draw(screen, bitmap, cliprect, 2, 0, 2, 2);
+		m_k052109->tilemap_draw(screen, bitmap, cliprect, 1, 0, 4, 4);
+
 		m_k051960->k051960_sprites_draw(bitmap, cliprect, screen.priority(), -1, -1);
-		m_k052109->tilemap_draw(screen, bitmap, cliprect, 1, 0, 0);
 	}
+
 	return 0;
 }
 
@@ -234,6 +234,7 @@ void bottom9_state::_1f90_w(uint8_t data)
 	else
 	{
 		m_palette_view.select(0);
+
 		// bit 4 = enable 051316 ROM reading
 		m_k051316_view.select(BIT(data, 4));
 	}
@@ -241,7 +242,7 @@ void bottom9_state::_1f90_w(uint8_t data)
 
 void bottom9_state::sh_irqtrigger_w(uint8_t data)
 {
-	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff); // Z80
+	m_audiocpu->set_input_line(0, HOLD_LINE);
 }
 
 TIMER_DEVICE_CALLBACK_MEMBER(bottom9_state::sound_interrupt)
@@ -250,12 +251,15 @@ TIMER_DEVICE_CALLBACK_MEMBER(bottom9_state::sound_interrupt)
 
 	// NMI 8 times per frame
 	if ((scanline & 0x1f) == 0x10 && m_nmienable)
-		m_audiocpu->pulse_input_line(INPUT_LINE_NMI, attotime::zero);
+		m_audiocpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
 }
 
 void bottom9_state::nmi_enable_w(uint8_t data)
 {
-	m_nmienable = data;
+	m_nmienable = data & 1;
+
+	if (!m_nmienable)
+		m_audiocpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
 }
 
 void bottom9_state::sound_bank_w(uint8_t data)
@@ -318,19 +322,19 @@ static INPUT_PORTS_START( bottom9 )
 
 	PORT_START("DSW2")
 	PORT_DIPNAME( 0x07, 0x04, "Play Time" ) PORT_DIPLOCATION("SW2:1,2,3")
-	PORT_DIPSETTING(    0x07, "1'00" )
-	PORT_DIPSETTING(    0x06, "1'10" )
-	PORT_DIPSETTING(    0x05, "1'20" )
-	PORT_DIPSETTING(    0x04, "1'30" )
-	PORT_DIPSETTING(    0x03, "1'40" )
-	PORT_DIPSETTING(    0x02, "1'50" )
-	PORT_DIPSETTING(    0x01, "2'00" )
-	PORT_DIPSETTING(    0x00, "2'10" )
+	PORT_DIPSETTING(    0x07, "1:00" )
+	PORT_DIPSETTING(    0x06, "1:10" )
+	PORT_DIPSETTING(    0x05, "1:20" )
+	PORT_DIPSETTING(    0x04, "1:30" )
+	PORT_DIPSETTING(    0x03, "1:40" )
+	PORT_DIPSETTING(    0x02, "1:50" )
+	PORT_DIPSETTING(    0x01, "2:00" )
+	PORT_DIPSETTING(    0x00, "2:10" )
 	PORT_DIPNAME( 0x18, 0x08, "Bonus Time" ) PORT_DIPLOCATION("SW2:4,5")
-	PORT_DIPSETTING(    0x18, "00" )
-	PORT_DIPSETTING(    0x10, "20" )
-	PORT_DIPSETTING(    0x08, "30" )
-	PORT_DIPSETTING(    0x00, "40" )
+	PORT_DIPSETTING(    0x18, DEF_STR( None ) )
+	PORT_DIPSETTING(    0x10, "20 sec" )
+	PORT_DIPSETTING(    0x08, "30 sec" )
+	PORT_DIPSETTING(    0x00, "40 sec" )
 	PORT_DIPNAME( 0x60, 0x40, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:6,7")
 	PORT_DIPSETTING(    0x60, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( Normal ) )
@@ -343,12 +347,12 @@ static INPUT_PORTS_START( bottom9 )
 	PORT_START("SYSTEM")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN1 )
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_COIN2 )
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_COIN3 )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_SERVICE1 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Flip_Screen ) ) PORT_DIPLOCATION("SW3:1")
 	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "SW3:2" )    // According to manual: N/U
+	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "SW3:2" ) // According to manual: N/U
 	PORT_SERVICE_DIPLOC( 0x40, IP_ACTIVE_LOW, "SW3:3" )
 	PORT_DIPNAME( 0x80, 0x80, "Fielder Control" ) PORT_DIPLOCATION("SW3:4")
 	PORT_DIPSETTING(    0x80, DEF_STR( Normal ) )
@@ -371,10 +375,10 @@ static INPUT_PORTS_START( mstadium )
 	PORT_DIPSETTING(    0x01, "3" )
 	PORT_DIPSETTING(    0x00, "4" )
 	PORT_DIPNAME( 0x0c, 0x08, "Play Inning Time" ) PORT_DIPLOCATION("SW2:3,4")
-	PORT_DIPSETTING(    0x0c, "6 Min" )
-	PORT_DIPSETTING(    0x08, "8 Min" )
-	PORT_DIPSETTING(    0x04, "10 Min" )
-	PORT_DIPSETTING(    0x00, "12 Min" )
+	PORT_DIPSETTING(    0x0c, "6 min" )
+	PORT_DIPSETTING(    0x08, "8 min" )
+	PORT_DIPSETTING(    0x04, "10 min" )
+	PORT_DIPSETTING(    0x00, "12 min" )
 	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW2:5")
 	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
@@ -399,10 +403,8 @@ void bottom9_state::machine_start()
 
 void bottom9_state::machine_reset()
 {
-	m_video_enable = 0;
-	m_palette_view.select(0);
-	m_k051316_view.select(0);
-	m_nmienable = 0;
+	nmi_enable_w(0);
+	_1f90_w(0);
 }
 
 void bottom9_state::bottom9(machine_config &config)
@@ -426,18 +428,18 @@ void bottom9_state::bottom9(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xBGR_555, 1024);
 	m_palette->enable_shadows();
 
-	K052109(config, m_k052109, 0); // 051961 on schematics
+	K052109(config, m_k052109, 24_MHz_XTAL); // 051961 on schematics
 	m_k052109->set_palette(m_palette);
 	m_k052109->set_screen("screen");
 	m_k052109->set_tile_callback(FUNC(bottom9_state::tile_callback));
 	m_k052109->irq_handler().set_inputline(m_maincpu, M6809_IRQ_LINE);
 
-	K051960(config, m_k051960, 0);
+	K051960(config, m_k051960, 24_MHz_XTAL);
 	m_k051960->set_palette(m_palette);
 	m_k051960->set_screen("screen");
 	m_k051960->set_sprite_callback(FUNC(bottom9_state::sprite_callback));
 
-	K051316(config, m_k051316, 0);
+	K051316(config, m_k051316, 24_MHz_XTAL / 2);
 	m_k051316->set_palette(m_palette);
 	m_k051316->set_zoom_callback(FUNC(bottom9_state::zoom_callback));
 
@@ -472,7 +474,7 @@ ROM_START( bottom9 )
 	ROM_REGION( 0x8000, "audiocpu", 0 ) // Z80 code
 	ROM_LOAD( "891j01.g8",    0x0000, 0x8000, CRC(31b0a0a8) SHA1(8e047f81c19f25de97fa22e70dcfe9e06bfae699) )
 
-	ROM_REGION( 0x080000, "k052109", 0 )    // tiles
+	ROM_REGION( 0x080000, "k052109", 0 ) // tiles
 	ROM_LOAD32_BYTE( "891e10c", 0x00000, 0x10000, CRC(209b0431) SHA1(07f05f63267d5ed5c99b5f786bb66a87045db9e1) )
 	ROM_LOAD32_BYTE( "891e10a", 0x00001, 0x10000, CRC(8020a9e8) SHA1(3792794a1b875506089da63cae955668cc61f54b) )
 	ROM_LOAD32_BYTE( "891e09c", 0x00002, 0x10000, CRC(9dcaefbf) SHA1(8b61b1627737b959158aa6c7ea5db63f6aec7436) )
@@ -501,11 +503,8 @@ ROM_START( bottom9 )
 	ROM_LOAD32_BYTE( "891e05d", 0xc0003, 0x10000, CRC(f6d3f886) SHA1(b8bdcc9470aa93849b8c8a1f03971281cacc6d44) )
 
 	ROM_REGION( 0x020000, "k051316", 0 )
-	ROM_LOAD( "891e07a",      0x00000, 0x10000, CRC(b8d8b939) SHA1(ee91fb46d70db2d17f5909c4ea7ee1cf2d317d10) )  // zoom/rotate
+	ROM_LOAD( "891e07a",      0x00000, 0x10000, CRC(b8d8b939) SHA1(ee91fb46d70db2d17f5909c4ea7ee1cf2d317d10) ) // zoom/rotate
 	ROM_LOAD( "891e07b",      0x10000, 0x10000, CRC(83b2f92d) SHA1(c4972018e1f8109656784fae3e023a5522622c4b) )
-
-	ROM_REGION( 0x0100, "proms", 0 )
-	ROM_LOAD( "891b11.f23",   0x0000, 0x0100, CRC(ecb854aa) SHA1(3bd321ca3076d4e0042e0af656d51909fa6a5b3b) )    // priority encoder (not used)
 
 	ROM_REGION( 0x40000, "k007232_1", 0 ) // samples
 	ROM_LOAD( "891e08a",      0x00000, 0x10000, CRC(cef667bf) SHA1(e773fc0ced45e01e13cdee18c404d609356d2d0e) )
@@ -513,11 +512,14 @@ ROM_START( bottom9 )
 	ROM_LOAD( "891e08c",      0x20000, 0x10000, CRC(756b7f3c) SHA1(6f36f0b4e08db27a8b6e180d12be6427677ad62d) )
 	ROM_LOAD( "891e08d",      0x30000, 0x10000, CRC(cd0d7305) SHA1(82403ce1f38014ebf94008a66c98697a572303f9) )
 
-	ROM_REGION( 0x40000, "k007232_2", 0 )  // samples
+	ROM_REGION( 0x40000, "k007232_2", 0 ) // samples
 	ROM_LOAD( "891e04a",      0x00000, 0x10000, CRC(daebbc74) SHA1(f61daebf80e5e4640c4cea4ea5767e64a49d928d) )
 	ROM_LOAD( "891e04b",      0x10000, 0x10000, CRC(5ffb9ad1) SHA1(e8f00c63dc3091aa344e82dc29f41aedd5a764b4) )
 	ROM_LOAD( "891e04c",      0x20000, 0x10000, CRC(2dbbf16b) SHA1(84b2005a1fe61a6a0cf1aa6e0fdf7ff8b1f8f82a) )
 	ROM_LOAD( "891e04d",      0x30000, 0x10000, CRC(8b0cd2cc) SHA1(e14109c69fa24d309aed4ff3589cc6619e29f97f) )
+
+	ROM_REGION( 0x0100, "proms", 0 )
+	ROM_LOAD( "891b11.f23",   0x0000, 0x0100, CRC(ecb854aa) SHA1(3bd321ca3076d4e0042e0af656d51909fa6a5b3b) ) // priority encoder (not used)
 ROM_END
 
 ROM_START( bottom9n )
@@ -528,7 +530,7 @@ ROM_START( bottom9n )
 	ROM_REGION( 0x8000, "audiocpu", 0 ) // Z80 code
 	ROM_LOAD( "891j01.g8",    0x0000, 0x8000, CRC(31b0a0a8) SHA1(8e047f81c19f25de97fa22e70dcfe9e06bfae699) )
 
-	ROM_REGION( 0x080000, "k052109", 0 )    // tiles
+	ROM_REGION( 0x080000, "k052109", 0 ) // tiles
 	ROM_LOAD32_BYTE( "891e10c", 0x00000, 0x10000, CRC(209b0431) SHA1(07f05f63267d5ed5c99b5f786bb66a87045db9e1) )
 	ROM_LOAD32_BYTE( "891e10a", 0x00001, 0x10000, CRC(8020a9e8) SHA1(3792794a1b875506089da63cae955668cc61f54b) )
 	ROM_LOAD32_BYTE( "891e09c", 0x00002, 0x10000, CRC(9dcaefbf) SHA1(8b61b1627737b959158aa6c7ea5db63f6aec7436) )
@@ -556,13 +558,9 @@ ROM_START( bottom9n )
 	ROM_LOAD32_BYTE( "891e05h", 0xc0002, 0x10000, CRC(b0aba53b) SHA1(e76b345ae354533959ed06217b91ce3c93b22a23) )
 	ROM_LOAD32_BYTE( "891e05d", 0xc0003, 0x10000, CRC(f6d3f886) SHA1(b8bdcc9470aa93849b8c8a1f03971281cacc6d44) )
 
-
 	ROM_REGION( 0x020000, "k051316", 0 )
-	ROM_LOAD( "891e07a",      0x00000, 0x10000, CRC(b8d8b939) SHA1(ee91fb46d70db2d17f5909c4ea7ee1cf2d317d10) )  // zoom/rotate
+	ROM_LOAD( "891e07a",      0x00000, 0x10000, CRC(b8d8b939) SHA1(ee91fb46d70db2d17f5909c4ea7ee1cf2d317d10) ) // zoom/rotate
 	ROM_LOAD( "891e07b",      0x10000, 0x10000, CRC(83b2f92d) SHA1(c4972018e1f8109656784fae3e023a5522622c4b) )
-
-	ROM_REGION( 0x0100, "proms", 0 )
-	ROM_LOAD( "891b11.f23",   0x0000, 0x0100, CRC(ecb854aa) SHA1(3bd321ca3076d4e0042e0af656d51909fa6a5b3b) )    // priority encoder (not used)
 
 	ROM_REGION( 0x40000, "k007232_1", 0 ) // samples
 	ROM_LOAD( "891e08a",      0x00000, 0x10000, CRC(cef667bf) SHA1(e773fc0ced45e01e13cdee18c404d609356d2d0e) )
@@ -570,11 +568,14 @@ ROM_START( bottom9n )
 	ROM_LOAD( "891e08c",      0x20000, 0x10000, CRC(756b7f3c) SHA1(6f36f0b4e08db27a8b6e180d12be6427677ad62d) )
 	ROM_LOAD( "891e08d",      0x30000, 0x10000, CRC(cd0d7305) SHA1(82403ce1f38014ebf94008a66c98697a572303f9) )
 
-	ROM_REGION( 0x40000, "k007232_2", 0 )  // samples
+	ROM_REGION( 0x40000, "k007232_2", 0 ) // samples
 	ROM_LOAD( "891e04a",      0x00000, 0x10000, CRC(daebbc74) SHA1(f61daebf80e5e4640c4cea4ea5767e64a49d928d) )
 	ROM_LOAD( "891e04b",      0x10000, 0x10000, CRC(5ffb9ad1) SHA1(e8f00c63dc3091aa344e82dc29f41aedd5a764b4) )
 	ROM_LOAD( "891e04c",      0x20000, 0x10000, CRC(2dbbf16b) SHA1(84b2005a1fe61a6a0cf1aa6e0fdf7ff8b1f8f82a) )
 	ROM_LOAD( "891e04d",      0x30000, 0x10000, CRC(8b0cd2cc) SHA1(e14109c69fa24d309aed4ff3589cc6619e29f97f) )
+
+	ROM_REGION( 0x0100, "proms", 0 )
+	ROM_LOAD( "891b11.f23",   0x0000, 0x0100, CRC(ecb854aa) SHA1(3bd321ca3076d4e0042e0af656d51909fa6a5b3b) ) // priority encoder (not used)
 ROM_END
 
 ROM_START( mstadium )
@@ -585,7 +586,7 @@ ROM_START( mstadium )
 	ROM_REGION( 0x8000, "audiocpu", 0 ) // Z80 code
 	ROM_LOAD( "891w01.g8",    0x0000, 0x8000, CRC(edec565a) SHA1(69cba0d00c6ef76c4ce2b553e3fd15de8abbbf31) )
 
-	ROM_REGION( 0x080000, "k052109", 0 )    // tiles
+	ROM_REGION( 0x080000, "k052109", 0 ) // tiles
 	ROM_LOAD32_BYTE( "891e10c", 0x00000, 0x10000, CRC(209b0431) SHA1(07f05f63267d5ed5c99b5f786bb66a87045db9e1) )
 	ROM_LOAD32_BYTE( "891e10a", 0x00001, 0x10000, CRC(8020a9e8) SHA1(3792794a1b875506089da63cae955668cc61f54b) )
 	ROM_LOAD32_BYTE( "891e09c", 0x00002, 0x10000, CRC(9dcaefbf) SHA1(8b61b1627737b959158aa6c7ea5db63f6aec7436) )
@@ -614,11 +615,8 @@ ROM_START( mstadium )
 	ROM_LOAD32_BYTE( "891e05d", 0xc0003, 0x10000, CRC(f6d3f886) SHA1(b8bdcc9470aa93849b8c8a1f03971281cacc6d44) )
 
 	ROM_REGION( 0x020000, "k051316", 0 )
-	ROM_LOAD( "891e07a",      0x00000, 0x10000, CRC(b8d8b939) SHA1(ee91fb46d70db2d17f5909c4ea7ee1cf2d317d10) )  // zoom/rotate
+	ROM_LOAD( "891e07a",      0x00000, 0x10000, CRC(b8d8b939) SHA1(ee91fb46d70db2d17f5909c4ea7ee1cf2d317d10) ) // zoom/rotate
 	ROM_LOAD( "891e07b",      0x10000, 0x10000, CRC(83b2f92d) SHA1(c4972018e1f8109656784fae3e023a5522622c4b) )
-
-	ROM_REGION( 0x0100, "proms", 0 )
-	ROM_LOAD( "891b11.f23",   0x0000, 0x0100, CRC(ecb854aa) SHA1(3bd321ca3076d4e0042e0af656d51909fa6a5b3b) )    // priority encoder (not used)
 
 	ROM_REGION( 0x40000, "k007232_1", 0 ) // samples
 	ROM_LOAD( "891e08a",      0x00000, 0x10000, CRC(cef667bf) SHA1(e773fc0ced45e01e13cdee18c404d609356d2d0e) )
@@ -626,11 +624,14 @@ ROM_START( mstadium )
 	ROM_LOAD( "891e08c",      0x20000, 0x10000, CRC(756b7f3c) SHA1(6f36f0b4e08db27a8b6e180d12be6427677ad62d) )
 	ROM_LOAD( "891e08d",      0x30000, 0x10000, CRC(cd0d7305) SHA1(82403ce1f38014ebf94008a66c98697a572303f9) )
 
-	ROM_REGION( 0x40000, "k007232_2", 0 )  // samples
+	ROM_REGION( 0x40000, "k007232_2", 0 ) // samples
 	ROM_LOAD( "891e04a",      0x00000, 0x10000, CRC(daebbc74) SHA1(f61daebf80e5e4640c4cea4ea5767e64a49d928d) )
 	ROM_LOAD( "891e04b",      0x10000, 0x10000, CRC(5ffb9ad1) SHA1(e8f00c63dc3091aa344e82dc29f41aedd5a764b4) )
 	ROM_LOAD( "891e04c",      0x20000, 0x10000, CRC(2dbbf16b) SHA1(84b2005a1fe61a6a0cf1aa6e0fdf7ff8b1f8f82a) )
 	ROM_LOAD( "891e04d",      0x30000, 0x10000, CRC(8b0cd2cc) SHA1(e14109c69fa24d309aed4ff3589cc6619e29f97f) )
+
+	ROM_REGION( 0x0100, "proms", 0 )
+	ROM_LOAD( "891b11.f23",   0x0000, 0x0100, CRC(ecb854aa) SHA1(3bd321ca3076d4e0042e0af656d51909fa6a5b3b) ) // priority encoder (not used)
 ROM_END
 
 } // anonymous namespace

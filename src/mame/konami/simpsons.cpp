@@ -302,8 +302,6 @@ uint32_t simpsons_state::screen_update(screen_device &screen, bitmap_ind16 &bitm
 			m_k052109->mark_tilemap_dirty(i);
 	}
 
-	m_k052109->tilemap_update();
-
 	// sort layers and draw
 	int layer[3]{};
 	for (int i = 0; i < 3; i++)
@@ -600,6 +598,7 @@ INPUT_PORTS_END
 
 void simpsons_state::object_dma()
 {
+	// TODO: implement sprite dma in k053246_k053247_k055673.cpp
 	uint16_t *dst;
 	m_k053246->k053247_get_ram(&dst);
 
@@ -662,13 +661,13 @@ void simpsons_state::simpsons(machine_config &config)
 
 	PALETTE(config, "palette").set_format(palette_device::xBGR_555, 2048).enable_shadows().enable_highlights();
 
-	K052109(config, m_k052109, 0);
+	K052109(config, m_k052109, 24_MHz_XTAL);
 	m_k052109->set_palette("palette");
 	m_k052109->set_screen("screen");
 	m_k052109->set_tile_callback(FUNC(simpsons_state::tile_callback));
 	m_k052109->irq_handler().set_inputline(m_maincpu, KONAMI_IRQ_LINE);
 
-	K053246(config, m_k053246, 0);
+	K053246(config, m_k053246, 24_MHz_XTAL);
 	m_k053246->set_sprite_callback(FUNC(simpsons_state::sprite_callback));
 	m_k053246->set_config(NORMAL_PLANE_ORDER, -43, 23);
 	m_k053246->set_palette("palette");

@@ -45,6 +45,10 @@ public:
 
 	void _88games(machine_config &config);
 
+protected:
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+
 private:
 	// video-related
 	bool          m_k88games_priority = false;
@@ -73,8 +77,6 @@ private:
 	void speech_msg_w(uint8_t data);
 	uint8_t k052109_051960_r(offs_t offset);
 	void k052109_051960_w(offs_t offset, uint8_t data);
-	virtual void machine_start() override ATTR_COLD;
-	virtual void machine_reset() override ATTR_COLD;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	K051316_CB_MEMBER(zoom_callback);
 	K052109_CB_MEMBER(tile_callback);
@@ -138,8 +140,6 @@ K051316_CB_MEMBER(_88games_state::zoom_callback)
 
 uint32_t _88games_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	m_k052109->tilemap_update();
-
 	if (m_k88games_priority)
 	{
 		m_k052109->tilemap_draw(screen, bitmap, cliprect, 0, TILEMAP_DRAW_OPAQUE, 0);   // tile 0
@@ -180,14 +180,11 @@ void _88games_state::k88games_5f84_w(uint8_t data)
 	m_zoomreadroms = BIT(data, 2);
 	if (!m_videobank)
 		m_k051316_view.select(m_zoomreadroms ? 1 : 0);
-
-	if (data & 0xf8)
-		popmessage("5f84 = %02x", data);
 }
 
 void _88games_state::sh_irqtrigger_w(uint8_t data)
 {
-	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff); // Z80
+	m_audiocpu->set_input_line(0, HOLD_LINE);
 }
 
 
@@ -461,18 +458,18 @@ void _88games_state::_88games(machine_config &config)
 
 	PALETTE(config, "palette").set_format(palette_device::xBGR_555, 2048).enable_shadows();
 
-	K052109(config, m_k052109, 0);
+	K052109(config, m_k052109, 24_MHz_XTAL);
 	m_k052109->set_palette("palette");
 	m_k052109->set_screen("screen");
 	m_k052109->set_tile_callback(FUNC(_88games_state::tile_callback));
 	m_k052109->irq_handler().set_inputline(m_maincpu, KONAMI_IRQ_LINE);
 
-	K051960(config, m_k051960, 0);
+	K051960(config, m_k051960, 24_MHz_XTAL);
 	m_k051960->set_palette("palette");
 	m_k051960->set_screen("screen");
 	m_k051960->set_sprite_callback(FUNC(_88games_state::sprite_callback));
 
-	K051316(config, m_k051316, 0);
+	K051316(config, m_k051316, 24_MHz_XTAL / 2);
 	m_k051316->set_palette("palette");
 	m_k051316->set_zoom_callback(FUNC(_88games_state::zoom_callback));
 
