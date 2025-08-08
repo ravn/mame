@@ -86,7 +86,7 @@
  * IGS025 protection for Chess Challenge II
  * Emulate necessary peripherals for Extra Draw (might not belong here)
  * I/O for remaining games
- * tshs has IGS3590 + NT3570F instead of Oki
+ * tshs101 has IGS3590 + NT3570F instead of Oki
 */
 
 #include "emu.h"
@@ -165,7 +165,7 @@ public:
 	void ccly(machine_config &config) ATTR_COLD;
 	void extradrw(machine_config &config) ATTR_COLD;
 	void chessc2(machine_config &config) ATTR_COLD;
-	void tshs(machine_config &config) ATTR_COLD;
+	void tshs101(machine_config &config) ATTR_COLD;
 
 	void init_sdwx() ATTR_COLD;
 	void init_lhzb4() ATTR_COLD;
@@ -259,7 +259,7 @@ private:
 	void cjddz_map(address_map &map) ATTR_COLD;
 	void tripslot_map(address_map &map) ATTR_COLD;
 	void ccly_map(address_map &map) ATTR_COLD;
-	void tshs_map(address_map &map) ATTR_COLD;
+	void tshs101_map(address_map &map) ATTR_COLD;
 
 	void oki_128k_map(address_map &map) ATTR_COLD;
 };
@@ -359,7 +359,7 @@ void igs_m027_state::ccly_map(address_map &map)
 	map(0x3800'c000, 0x3800'c003).umask32(0x0000'00ff).w(FUNC(igs_m027_state::ccly_okibank_w));
 }
 
-void igs_m027_state::tshs_map(address_map &map)
+void igs_m027_state::tshs101_map(address_map &map)
 {
 	map(0x0800'0000, 0x0807'ffff).r(FUNC(igs_m027_state::external_rom_r)); // Game ROM
 
@@ -1268,7 +1268,7 @@ INPUT_PORTS_START( mgzz101cn )
 	PORT_DIPSETTING(    0x00, DEF_STR(1C_2C) )
 	PORT_DIPSETTING(    0x08, DEF_STR(1C_2C) )
 	PORT_DIPSETTING(    0x10, DEF_STR(1C_5C) )
-	PORT_DIPSETTING(    0x18, "1 Coin/10 Credits" )
+	PORT_DIPSETTING(    0x18, DEF_STR(1C_10C) )
 	PORT_DIPNAME( 0x60, 0x60, "Key-In Rate" )              PORT_DIPLOCATION("SW1:6,7")  // 开分比率
 	PORT_DIPSETTING(    0x60, "50" )
 	PORT_DIPSETTING(    0x40, "100" )
@@ -2304,11 +2304,11 @@ void igs_m027_state::ccly(machine_config &config)
 	m_oki->set_clock(2'000'000);
 }
 
-void igs_m027_state::tshs(machine_config &config)
+void igs_m027_state::tshs101(machine_config &config)
 {
 	ccly(config);
 
-	m_maincpu->set_addrmap(AS_PROGRAM, &igs_m027_state::tshs_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &igs_m027_state::tshs101_map);
 
 	config.device_remove("oki");
 
@@ -2534,6 +2534,25 @@ ROM_START( luckycrs )
 
 	ROM_REGION( 0x200000, "oki", 0 )
 	ROM_LOAD( "igs_w4102_u37.u37", 0x000000, 0x200000, CRC(114b44ee) SHA1(728ffee34c64edcfef3a46e8be97db60da8a90dc) ) // 27C160, 11xxxxxxxxxxxxxxxxxxx = 0xFF
+ROM_END
+
+ROM_START( gonefsh ) // IGS PCB-0331-02-FG
+	ROM_REGION( 0x4000, "maincpu", 0 )
+	// Internal ROM of IGS027A type G ARM based MCU
+	ROM_LOAD( "027a.u32", 0x0000, 0x4000, NO_DUMP )
+
+	ROM_REGION32_LE( 0x80000, "user1", 0 ) // external ARM data / prg
+	ROM_LOAD( "gonefishin_v-602us.u23", 0x00000, 0x80000, CRC(f47b673c) SHA1(c3d412209427df9fde76a76c78cfe8267dbceb78) )
+
+	ROM_REGION( 0x80000, "igs017_igs031:tilemaps", 0 )
+	ROM_LOAD16_WORD_SWAP( "gonefishin_text.u12", 0x000000, 0x080000, CRC(a0ece4b7) SHA1(473369bc3aed6d1971bf67e7632e00972bda208c) )
+
+	ROM_REGION( 0x280000, "igs017_igs031:sprites", 0 )
+	ROM_LOAD( "gonefishin_cg1_u13.u13", 0x000000, 0x200000, CRC(9e6cea86) SHA1(7b5d13eba5fd90a611293959bddd82a058a8d2c7) ) // FIXED BITS (xxxxxxx0xxxxxxxx)
+	ROM_LOAD( "gonefishin_cg2_u11.u11", 0x200000, 0x080000, CRC(3baeb7e6) SHA1(e8a80c590d504182402294f5455453ad1fc8827b) )
+
+	ROM_REGION( 0x80000, "oki", 0 )
+	ROM_LOAD( "gonefishin_sp.u28", 0x00000, 0x80000, CRC(e8db1fd1) SHA1(09ef823a2edb3be4bd773f4aec41594359957354) )
 ROM_END
 
 /***************************************************************************
@@ -2990,6 +3009,26 @@ ROM_START( zhongguo )
 
 	ROM_REGION( 0x200000, "oki", 0 )
 	ROM_LOAD( "s2602.u14", 0x00000, 0x100000, CRC(f137028c) SHA1(0e4114222820bca2f7026fa653e2b96a489a0183) )
+ROM_END
+
+// 天生好手 (Tiānshēng Hǎoshǒu) - V201CN
+ROM_START( tshs ) // IGS PCB-0267. See above for PCB layout
+	ROM_REGION( 0x4000, "maincpu", 0 )
+	// Internal ROM of IGS027A ARM based MCU
+	ROM_LOAD( "s2_027a.u23", 0x0000, 0x4000, CRC(1755418b) SHA1(5db9b7a781a495064187a43055eed5f8f74bd4c2) )
+
+	ROM_REGION32_LE( 0x80000, "user1", 0 ) // external ARM data / prg
+	ROM_LOAD( "v102cn.u10", 0x00000, 0x80000, CRC(11e69b48) SHA1(ab7a60557474c9a63b7a99649c42a9459b7cf874) ) // labeled V102CN but game shows V201CN in test mode
+
+	ROM_REGION( 0x80000, "igs017_igs031:tilemaps", 0 )
+	ROM_LOAD( "igs_t3702_text_v100.u9", 0x00000, 0x80000, CRC(07294995) SHA1(47e0f33d6fa7447415b4af7d28c1af9c011b2f9e) )
+
+	ROM_REGION( 0x480000, "igs017_igs031:sprites", 0 )
+	ROM_LOAD( "igs_a3701_anim_v100.u17", 0x000000, 0x400000, CRC(bed56f35) SHA1(5a29d2a39fd997ed9ef0ec695c63629ee2303ce2) ) // FIXED BITS (xxxxxxxx0xxxxxxx)
+	ROM_LOAD( "u18",                     0x400000, 0x080000, NO_DUMP )
+
+	ROM_REGION( 0x80000, "oki", 0 )
+	ROM_LOAD( "v102cn.u14", 0x00000, 0x80000, CRC(fc055df1) SHA1(8ed0334a3947833a6192e6d4ea9678d8facea119) )
 ROM_END
 
 
@@ -3766,7 +3805,7 @@ ROM_START( cjsxp ) // IGS PCB-0362-02-FP. 3 banks of 8 switches.
 ROM_END
 
 // 天生好手 (Tiānshēng Hǎoshǒu)
-ROM_START( tshs ) // IGS PCB-0312-00. 2 banks of 8 switches. 1 PPI. IGS3590 + NT3570F instead of Oki.
+ROM_START( tshs101 ) // IGS PCB-0312-00. 2 banks of 8 switches. 1 PPI. IGS3590 + NT3570F instead of Oki.
 	ROM_REGION( 0x4000, "maincpu", 0 )
 	// Internal rom of IGS027A ARM based MCU
 	ROM_LOAD( "s2_027a.u23", 0x0000, 0x4000, CRC(4fb222e6) SHA1(ccd00cefa0bca52c10b3c8f1051c3332693a2d46) )
@@ -3775,7 +3814,7 @@ ROM_START( tshs ) // IGS PCB-0312-00. 2 banks of 8 switches. 1 PPI. IGS3590 + NT
 	ROM_LOAD( "u4", 0x00000, 0x80000, CRC(2588e70a) SHA1(cc4b17d61d5af4642191d7f9a9b40a57e81ce192) ) // no label
 
 	ROM_REGION( 0x80000, "igs017_igs031:tilemaps", 0 )
-	ROM_LOAD( "igs_t3702_anim_v100.u6", 0x00000, 0x80000, CRC(07294995) SHA1(47e0f33d6fa7447415b4af7d28c1af9c011b2f9e) )
+	ROM_LOAD( "igs_t3702_text_v100.u6", 0x00000, 0x80000, CRC(07294995) SHA1(47e0f33d6fa7447415b4af7d28c1af9c011b2f9e) )
 
 	ROM_REGION( 0x400000, "igs017_igs031:sprites", 0 )
 	ROM_LOAD( "igs_a3701_anim_v100.u8", 0x000000, 0x400000, CRC(bed56f35) SHA1(5a29d2a39fd997ed9ef0ec695c63629ee2303ce2) ) // FIXED BITS (xxxxxxxx0xxxxxxx)
@@ -4118,7 +4157,8 @@ GAME(  2005, xypdk,         0,        xypdk,        lhzb4,         igs_m027_stat
 GAMEL( 2007, tripslot,      0,        tripslot,     tripslot,      igs_m027_state, init_tripslot, ROT0, "IGS", "Triple Slot (V200VE)", 0, layout_tripslot ) // 2007 date in internal ROM at least, could be later, default settings password is all 'start 1'
 GAMEL( 2005, ccly,          crzybugs, ccly,         ccly,          igs_m027_state, init_ccly,     ROT0, "IGS", "Chong Chong Leyuan (V100CN)", MACHINE_NOT_WORKING, layout_ccly )
 GAME(  2001, cjsxp,         0,        ccly,         ccly,          igs_m027_state, init_klxyj,    ROT0, "IGS", "Huangpai Zuqiu Plus / Chaoji Shuangxing Plus (V103CN)", MACHINE_NOT_WORKING ) // inputs, outputs, Oki ROM bank
-GAME(  2000, tshs,          0,        tshs,         ccly,          igs_m027_state, init_slqz3,    ROT0, "IGS", "Tian Sheng Hao Shou (V101CN)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND ) // inputs, outputs, unemulated sound chips
+GAME(  2000, tshs,          0,        zhongguo,     zhongguo,      igs_m027_state, init_slqz3,    ROT0, "IGS", "Tiansheng Haoshou (V201CN)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND ) // inputs, outputs
+GAME(  2000, tshs101,       tshs,     tshs101,      ccly,          igs_m027_state, init_slqz3,    ROT0, "IGS", "Tiansheng Haoshou (V101CN)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND ) // inputs, outputs, unemulated sound chips
 GAME(  2006, tswxp,         0,        tct2p,        tct2p,         igs_m027_state, init_tswxp,    ROT0, "IGS", "Taishan Wuxian Jiaqiang Ban (V101CN)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND ) // inputs, outputs, Oki ROM bank
 // this has a 2nd 8255
 GAME(  2001, extradrw,      0,        extradrw,     base,          igs_m027_state, init_extradrw, ROT0, "IGS", "Extra Draw (V100VE)", MACHINE_NOT_WORKING )
@@ -4141,6 +4181,7 @@ GAME(  2002, sdwx,          0,        m027_1ppi<false>, base,     igs_m027_state
 GAME(  2001, cjdh6th,       0,        m027_1ppi<false>, base,     igs_m027_state, init_extradrw, ROT0, "IGS", "Chaoji Daheng 6th", MACHINE_NOT_WORKING )
 GAME(  200?, royal5p,       0,        m027_1ppi<false>, base,     igs_m027_state, empty_init,    ROT0, "IGS", "Royal 5+ (V101US)", MACHINE_NOT_WORKING )
 GAME(  200?, jhg3d,         0,        m027_1ppi<false>, base,     igs_m027_state, empty_init,    ROT0, "IGS", "Jin Huangguan 3-dai (V445CN)", MACHINE_NOT_WORKING )
+GAME(  200?, gonefsh,       0,        m027_1ppi<false>, base,     igs_m027_state, empty_init,    ROT0, "IGS", "Gone Fishing (V602US)", MACHINE_NOT_WORKING )
 
 // these have an IGS025 protection device instead of the 8255
 GAME(  200?, gonefsh2,      0,        m027_noppi<false>,base,     igs_m027_state, init_gonefsh2, ROT0, "IGS", "Gone Fishing 2", MACHINE_NOT_WORKING )

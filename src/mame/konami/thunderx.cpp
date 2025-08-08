@@ -192,6 +192,7 @@ K052109_CB_MEMBER(scontra_state::gbusters_tile_callback)
 	*color = layer_colorbase[layer] + ((*color & 0xe0) >> 5);
 }
 
+
 /***************************************************************************
 
   Callbacks for the K051960
@@ -225,8 +226,6 @@ K051960_CB_MEMBER(thunderx_state_base::sprite_callback)
 
 uint32_t thunderx_state_base::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	m_k052109->tilemap_update();
-
 	screen.priority().fill(0, cliprect);
 
 	// The background color is always from layer 1
@@ -815,13 +814,13 @@ void thunderx_state_base::common(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xBGR_555, 1024);
 	m_palette->enable_shadows();
 
-	K052109(config, m_k052109, 0); // 051961 on Super Contra and Thunder Cross schematics
+	K052109(config, m_k052109, 24_MHz_XTAL); // 051961 on Super Contra and Thunder Cross schematics
 	m_k052109->set_palette(m_palette);
 	m_k052109->set_screen("screen");
 	m_k052109->set_tile_callback(FUNC(thunderx_state_base::tile_callback));
 	m_k052109->irq_handler().set_inputline(m_maincpu, KONAMI_IRQ_LINE);
 
-	K051960(config, m_k051960, 0);
+	K051960(config, m_k051960, 24_MHz_XTAL);
 	m_k051960->set_palette(m_palette);
 	m_k051960->set_screen("screen");
 	m_k051960->set_sprite_callback(FUNC(thunderx_state_base::sprite_callback));

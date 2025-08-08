@@ -137,7 +137,6 @@ uint32_t blockhl_state::screen_update(screen_device &screen, bitmap_ind16 &bitma
 {
 	screen.priority().fill(0, cliprect);
 
-	m_k052109->tilemap_update();
 	m_k052109->tilemap_draw(screen, bitmap, cliprect, 2, TILEMAP_DRAW_OPAQUE, 0); // tile 2
 	m_k052109->tilemap_draw(screen, bitmap, cliprect, 1, 0, 1); // tile 1
 	m_k051960->k051960_sprites_draw(bitmap, cliprect, screen.priority(), -1, -1);
@@ -303,13 +302,13 @@ void blockhl_state::blockhl(machine_config &config)
 
 	PALETTE(config, "palette").set_format(palette_device::xBGR_555, 1024).enable_shadows();
 
-	K052109(config, m_k052109, 0);
+	K052109(config, m_k052109, 24_MHz_XTAL);
 	m_k052109->set_palette("palette");
 	m_k052109->set_screen("screen");
 	m_k052109->set_tile_callback(FUNC(blockhl_state::tile_callback));
 	m_k052109->irq_handler().set_inputline(m_maincpu, KONAMI_IRQ_LINE);
 
-	K051960(config, m_k051960, 0);
+	K051960(config, m_k051960, 24_MHz_XTAL);
 	m_k051960->set_palette("palette");
 	m_k051960->set_screen("screen");
 	m_k051960->set_sprite_callback(FUNC(blockhl_state::sprite_callback));

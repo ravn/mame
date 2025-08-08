@@ -127,8 +127,6 @@ K051960_CB_MEMBER(aliens_state::sprite_callback)
 
 uint32_t aliens_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	m_k052109->tilemap_update();
-
 	screen.priority().fill(0, cliprect);
 	// The background color is always from layer 1
 	m_k052109->tilemap_draw(screen, bitmap, cliprect, 1, TILEMAP_DRAW_OPAQUE, 0);
@@ -313,12 +311,12 @@ void aliens_state::aliens(machine_config &config)
 
 	PALETTE(config, "palette").set_format(palette_device::xBGR_555, 512).enable_shadows();
 
-	K052109(config, m_k052109, 0);
+	K052109(config, m_k052109, 24_MHz_XTAL);
 	m_k052109->set_palette("palette");
-	m_k052109->set_screen(nullptr);
+	m_k052109->set_screen("screen");
 	m_k052109->set_tile_callback(FUNC(aliens_state::tile_callback));
 
-	K051960(config, m_k051960, 0);
+	K051960(config, m_k051960, 24_MHz_XTAL);
 	m_k051960->set_palette("palette");
 	m_k051960->set_screen("screen");
 	m_k051960->set_sprite_callback(FUNC(aliens_state::sprite_callback));

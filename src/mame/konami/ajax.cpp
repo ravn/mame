@@ -182,12 +182,11 @@ K051316_CB_MEMBER(ajax_state::zoom_callback)
 
 uint32_t ajax_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	m_k052109->tilemap_update();
-
 	screen.priority().fill(0, cliprect);
-
 	bitmap.fill(m_palette->black_pen(), cliprect);
+
 	m_k052109->tilemap_draw(screen, bitmap, cliprect, 2, 0, 1);
+
 	if (m_priority)
 	{
 		// basic layer order is B, zoom, A, F
@@ -200,8 +199,10 @@ uint32_t ajax_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, 
 		m_k052109->tilemap_draw(screen, bitmap, cliprect, 1, 0, 2);
 		m_k051316->zoom_draw(screen, bitmap, cliprect, 0, 4);
 	}
+
 	m_k051960->k051960_sprites_draw(bitmap, cliprect, screen.priority(), -1, -1);
 	m_k052109->tilemap_draw(screen, bitmap, cliprect, 0, 0, 0);
+
 	return 0;
 }
 
@@ -572,19 +573,19 @@ void ajax_state::ajax(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xBGR_555, 2048);
 	m_palette->enable_shadows();
 
-	K052109(config, m_k052109, 0);
+	K052109(config, m_k052109, 24_MHz_XTAL);
 	m_k052109->set_palette(m_palette);
 	m_k052109->set_screen("screen");
 	m_k052109->set_tile_callback(FUNC(ajax_state::tile_callback));
 	m_k052109->irq_handler().set_inputline(m_subcpu, M6809_IRQ_LINE);
 
-	K051960(config, m_k051960, 0);
+	K051960(config, m_k051960, 24_MHz_XTAL);
 	m_k051960->set_palette("palette");
 	m_k051960->set_screen("screen");
 	m_k051960->set_sprite_callback(FUNC(ajax_state::sprite_callback));
 	m_k051960->irq_handler().set_inputline(m_maincpu, KONAMI_IRQ_LINE);
 
-	K051316(config, m_k051316, 0);
+	K051316(config, m_k051316, 24_MHz_XTAL / 2);
 	m_k051316->set_palette(m_palette);
 	m_k051316->set_bpp(7);
 	m_k051316->set_zoom_callback(FUNC(ajax_state::zoom_callback));

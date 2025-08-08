@@ -181,8 +181,6 @@ uint32_t gradius3_state::screen_update_gradius3(screen_device &screen, bitmap_in
 	m_k052109->write(0x1d80, 0x10);
 	m_k052109->write(0x1f00, 0x32);
 
-	m_k052109->tilemap_update();
-
 	screen.priority().fill(0, cliprect);
 	if (m_priority == 0)
 	{
@@ -488,13 +486,13 @@ void gradius3_state::gradius3(machine_config &config)
 
 	PALETTE(config, "palette").set_format(palette_device::xRGB_555, 2048).enable_shadows();
 
-	K052109(config, m_k052109, 0);
+	K052109(config, m_k052109, 24_MHz_XTAL);
 	m_k052109->set_palette("palette");
-	m_k052109->set_screen(nullptr);
+	m_k052109->set_screen("screen");
 	m_k052109->set_tile_callback(FUNC(gradius3_state::tile_callback));
 	m_k052109->set_char_ram(true);
 
-	K051960(config, m_k051960, 0);
+	K051960(config, m_k051960, 24_MHz_XTAL);
 	m_k051960->set_palette("palette");
 	m_k051960->set_screen("screen");
 	m_k051960->set_sprite_callback(FUNC(gradius3_state::sprite_callback));

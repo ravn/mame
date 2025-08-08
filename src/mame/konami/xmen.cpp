@@ -239,8 +239,6 @@ uint32_t xmen_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, 
 			m_k052109->mark_tilemap_dirty(i);
 	}
 
-	m_k052109->tilemap_update();
-
 	// sort layers and draw
 	int layer[3];
 	for (int i = 0; i < 3; i++)
@@ -252,14 +250,12 @@ uint32_t xmen_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, 
 	konami_sortlayers3(layer, m_layerpri);
 
 	screen.priority().fill(0, cliprect);
-	// note the '+1' in the background color!!!
-	bitmap.fill(16 * bg_colorbase + 1, cliprect);
+	bitmap.fill(16 * bg_colorbase + 1, cliprect); // note the '+1' in the background color!
+
 	m_k052109->tilemap_draw(screen, bitmap, cliprect, layer[0], 0, 1);
 	m_k052109->tilemap_draw(screen, bitmap, cliprect, layer[1], 0, 2);
 	m_k052109->tilemap_draw(screen, bitmap, cliprect, layer[2], 0, 4);
 
-	/* this isn't supported anymore and it is unsure if still needed; keeping here for reference
-	pdrawgfx_shadow_lowpri = 1; fix shadows of boulders in front of feet */
 	m_k053246->k053247_sprites_draw(bitmap, cliprect);
 	return 0;
 }
@@ -318,7 +314,7 @@ void xmen6p_state::screen_vblank(int state)
 				m_k052109->mark_tilemap_dirty(i);
 		}
 
-		m_k052109->tilemap_update();
+		m_k052109->update_scroll();
 
 		// sort layers and draw
 		int layer[3];
@@ -331,14 +327,12 @@ void xmen6p_state::screen_vblank(int state)
 		konami_sortlayers3(layer, m_layerpri);
 
 		m_screen->priority().fill(0, cliprect);
-		// note the '+1' in the background color!!!
-		renderbitmap.fill(16 * bg_colorbase + 1, cliprect);
+		renderbitmap.fill(16 * bg_colorbase + 1, cliprect); // note the '+1' in the background color!
+
 		m_k052109->tilemap_draw(*m_screen, renderbitmap, cliprect, layer[0], 0, 1);
 		m_k052109->tilemap_draw(*m_screen, renderbitmap, cliprect, layer[1], 0, 2);
 		m_k052109->tilemap_draw(*m_screen, renderbitmap, cliprect, layer[2], 0, 4);
 
-		/* this isn't supported anymore and it is unsure if still needed; keeping here for reference
-		pdrawgfx_shadow_lowpri = 1; fix shadows of boulders in front of feet */
 		m_k053246->k053247_sprites_draw(renderbitmap, cliprect);
 	}
 }
@@ -697,12 +691,12 @@ void xmen_state::base(machine_config &config)
 
 	PALETTE(config, "palette").set_format(palette_device::xBGR_555, 2048).enable_shadows();
 
-	K052109(config, m_k052109, 0);
+	K052109(config, m_k052109, 24_MHz_XTAL);
 	m_k052109->set_palette("palette");
-	m_k052109->set_screen(nullptr);
+	m_k052109->set_screen(m_screen);
 	m_k052109->set_tile_callback(FUNC(xmen_state::tile_callback));
 
-	K053246(config, m_k053246, 0);
+	K053246(config, m_k053246, 24_MHz_XTAL);
 	m_k053246->set_sprite_callback(FUNC(xmen_state::sprite_callback));
 	m_k053246->set_config(NORMAL_PLANE_ORDER, -43, -2);
 	m_k053246->set_palette("palette");
