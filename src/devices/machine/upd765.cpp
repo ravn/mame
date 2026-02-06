@@ -27,6 +27,13 @@
 #include <iomanip>
 #include <sstream>
 
+// RC702 floppy debug: capture sector for hex dump (only used when machine is rc702)
+namespace {
+	static uint8_t rc702_fdc_dbg_sector_buf[1024];
+	static int rc702_fdc_dbg_sector_count;
+	static int rc702_fdc_dbg_head, rc702_fdc_dbg_track, rc702_fdc_dbg_sector, rc702_fdc_dbg_sector_size;
+}
+
 #define LOGWARN(...)     LOGMASKED(LOG_WARN, __VA_ARGS__)
 #define LOGSHIFT(...)    LOGMASKED(LOG_SHIFT, __VA_ARGS__)
 #define LOGHEADER(...)   LOGMASKED(LOG_HEADER, __VA_ARGS__)
@@ -1059,12 +1066,33 @@ void upd765_family_device::live_run(attotime limit)
 			break;
 		}
 
-		case READ_SECTOR_DATA_BYTE:
-			if(!tc_done)
+		case READ_SECTOR_DATA_BYTE: {
+			if(!tc_done) {
+				if (strcmp(machine().system().name, "rc702") == 0 && rc702_fdc_dbg_sector_count < rc702_fdc_dbg_sector_size && rc702_fdc_dbg_sector_count < int(std::size(rc702_fdc_dbg_sector_buf)))
+					rc702_fdc_dbg_sector_buf[rc702_fdc_dbg_sector_count] = cur_live.data_reg;
 				fifo_push(cur_live.data_reg, true);
+				if (strcmp(machine().system().name, "rc702") == 0) {
+					int slot = (cur_live.bit_counter >> 4) - 1;
+					if (slot == rc702_fdc_dbg_sector_size - 1 && rc702_fdc_dbg_sector_count + 1 == rc702_fdc_dbg_sector_size) {
+						// full sector captured - hex dump
+						osd_printf_verbose("RC702_FDC_SECTOR_DUMP head=%d track=%d sector=%d (%d bytes):\n", rc702_fdc_dbg_head, rc702_fdc_dbg_track, rc702_fdc_dbg_sector, rc702_fdc_dbg_sector_size);
+						for (int i = 0; i < rc702_fdc_dbg_sector_size; i += 16) {
+							std::ostringstream line;
+							line << util::string_format("  %04x: ", i);
+							for (int j = 0; j < 16 && i + j < rc702_fdc_dbg_sector_size; j++)
+								line << util::string_format("%02x ", rc702_fdc_dbg_sector_buf[i + j]);
+							for (int j = 0; j < 16 && i + j < rc702_fdc_dbg_sector_size; j++)
+								line << util::string_format("%c", isprint(rc702_fdc_dbg_sector_buf[i + j]) ? rc702_fdc_dbg_sector_buf[i + j] : '.');
+							osd_printf_verbose("%s\n", line.str());
+						}
+					}
+					rc702_fdc_dbg_sector_count++;
+				}
+			}
 			cur_live.state = READ_SECTOR_DATA;
 			checkpoint();
 			break;
+		}
 
 		case SCAN_SECTOR_DATA_BYTE:
 			if(!scan_done) { // TODO: handle stp, x68000 sets it to 0xff (as it would dtl)?
@@ -1918,6 +1946,19 @@ void upd765_family_device::read_data_continue(floppy_info &fi)
 						cur_live.idbuf[2],
 						cur_live.idbuf[3]);
 			sector_size = calc_sector_size(cur_live.idbuf[3]);
+			// RC702 debug: breakpoint-friendly log and sector capture (set breakpoint on next line or on rc702_fdc_dbg_*)
+			if (strcmp(machine().system().name, "rc702") == 0) {
+				//static volatile int rc702_fdc_dbg_breakpoint;
+				int head = cur_live.idbuf[1], track = cur_live.idbuf[0], sector = cur_live.idbuf[2];
+				osd_printf_verbose("RC702_FDC_READ head=%d track=%d sector=%d size=%d\n", head, track, sector, sector_size);
+				//rc702_fdc_dbg_breakpoint = (head << 16) | (track << 8) | sector;
+				// prepare to capture sector for hex dump
+				rc702_fdc_dbg_sector_count = 0;
+				rc702_fdc_dbg_head = head;
+				rc702_fdc_dbg_track = track;
+				rc702_fdc_dbg_sector = sector;
+				rc702_fdc_dbg_sector_size = sector_size;
+			}
 			if(fi.main_state == SCAN_DATA)
 				fifo_expect(sector_size, true);
 			else
