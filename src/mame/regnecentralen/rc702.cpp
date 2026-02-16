@@ -52,8 +52,10 @@ public:
 		, m_palette(*this, "palette")
 		, m_maincpu(*this, "maincpu")
 		, m_rom(*this, "maincpu")
+		, m_rom_prom1(*this, "prom1")
 		, m_ram(*this, "mainram")
 		, m_bank1(*this, "bank1")
+		, m_bank2(*this, "bank2")
 		, m_p_chargen(*this, "chargen")
 		, m_ctc1(*this, "ctc1")
 		, m_pio(*this, "pio")
@@ -98,8 +100,10 @@ private:
 	required_device<palette_device> m_palette;
 	required_device<z80_device> m_maincpu;
 	required_region_ptr<u8> m_rom;
+	required_region_ptr<u8> m_rom_prom1;
 	required_shared_ptr<u8> m_ram;
 	required_memory_bank    m_bank1;
+	required_memory_bank    m_bank2;
 	required_region_ptr<u8> m_p_chargen;
 	required_device<z80ctc_device> m_ctc1;
 	required_device<z80pio_device> m_pio;
@@ -115,6 +119,7 @@ void rc702_state::mem_map(address_map &map)
 {
 	map(0x0000, 0xffff).ram().share("mainram");
 	map(0x0000, 0x07ff).bankr("bank1");
+	map(0x2000, 0x27ff).bankr("bank2");
 }
 
 void rc702_state::io_map(address_map &map)
@@ -127,7 +132,7 @@ void rc702_state::io_map(address_map &map)
 	map(0x0c, 0x0f).rw(m_ctc1, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
 	map(0x10, 0x13).rw(m_pio, FUNC(z80pio_device::read), FUNC(z80pio_device::write));
 	map(0x14, 0x17).portr("DSW").w(FUNC(rc702_state::port14_w)); // motors
-	map(0x18, 0x1b).lw8(NAME([this] (u8 data) { m_bank1->set_entry(0); })); // replace roms with ram
+	map(0x18, 0x1b).lw8(NAME([this] (u8 data) { m_bank1->set_entry(0); m_bank2->set_entry(0); })); // replace roms with ram
 	map(0x1c, 0x1f).w(FUNC(rc702_state::port1c_w)); // sound
 	map(0xf0, 0xff).rw(m_dma, FUNC(am9517a_device::read), FUNC(am9517a_device::write));
 }
@@ -156,7 +161,7 @@ static INPUT_PORTS_START( rc702 )
 	PORT_DIPNAME( 0x40, 0x00, "S07")
 	PORT_DIPSETTING(    0x40, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x80, 0x00, "Minifloppy") // also need to switch frequencies to fdc
+	PORT_DIPNAME( 0x80, 0x80, "Minifloppy") // also need to switch frequencies to fdc
 	PORT_DIPSETTING(    0x80, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
 INPUT_PORTS_END
@@ -164,6 +169,7 @@ INPUT_PORTS_END
 void rc702_state::machine_reset()
 {
 	m_bank1->set_entry(1);
+	m_bank2->set_entry(1);
 	m_beepcnt = 0xffff;
 	m_dack1 = 0;
 	m_eop = 0;
@@ -177,6 +183,8 @@ void rc702_state::machine_start()
 {
 	m_bank1->configure_entry(0, m_ram);
 	m_bank1->configure_entry(1, m_rom);
+	m_bank2->configure_entry(0, &m_ram[0x2000]);
+	m_bank2->configure_entry(1, m_rom_prom1);
 	save_item(NAME(m_q_state));
 	save_item(NAME(m_qbar_state));
 	save_item(NAME(m_drq_state));
@@ -419,6 +427,9 @@ ROM_START( rc702 )
 	ROMX_LOAD( "rob357.rom", 0x0000, 0x0800,  CRC(dcf84a48) SHA1(7190d3a898bcbfa212178a4d36afc32bbbc166ef), ROM_BIOS(1))
 	ROM_SYSTEM_BIOS(2, "rc700", "RC700")
 	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800,  CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(2))
+
+	ROM_REGION( 0x0800, "prom1", ROMREGION_ERASEFF )
+	ROM_LOAD( "prom1.ic55", 0x0000, 0x0800, NO_DUMP )
 
 	ROM_REGION( 0x1000, "chargen", 0 )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) ) // char
