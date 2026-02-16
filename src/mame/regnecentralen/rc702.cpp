@@ -6,7 +6,7 @@ Regnecentralen Piccolo RC702
 
 2016-09-10 Skeleton driver
 
-Undumped prom at IC55 type 74S287
+Undumped prom at IC55 type 74S287 (address decoder for PROM0/PROM1 mapping)
 Keyboard has 8048 and 2758, both undumped.
 
 ToDo:
@@ -429,7 +429,7 @@ ROM_START( rc702 )
 	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800,  CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(2))
 
 	ROM_REGION( 0x0800, "prom1", ROMREGION_ERASEFF )
-	ROM_LOAD( "prom1.ic55", 0x0000, 0x0800, NO_DUMP )
+	ROM_LOAD( "prom1.ic65", 0x0000, 0x0800, NO_DUMP ) // line program ROM (ROB388 on MIC705)
 
 	ROM_REGION( 0x1000, "chargen", 0 )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) ) // char
