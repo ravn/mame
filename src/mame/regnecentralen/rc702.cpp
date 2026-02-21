@@ -15,9 +15,20 @@ ToDo:
 - Other things
 
 Issues:
-- Keyboard input looks like ^ü - which is what the CCP shows for ascii 0.
-- There needs to be a RC702 with 5,25" drives (mini) in addition to the (QD) one.   Currently overriden to mini.
+- There needs to be a RC702 with 5,25" drives (mini) in addition to the (QD) one.   Currently overridden to mini.
 
+Keyboard (PIO port A):
+- The real machine connects the keyboard to Z80 PIO port A.  The driver feeds key data via
+  the PIO's in_pa_callback(); the BIOS/CP/M reads the data register and is signalled by strobe.
+- Emulated mode: GENERIC_KEYBOARD calls kbd_put(character) on key make/repeat and kbd_break()
+  on key release.  We throttle typematic: first repeat after 1.5 s, then ~2/s.  kbd_break()
+  resets state so the next key press is always treated as new (avoids double characters when
+  typing repeated keys like "DDT").
+- Natural keyboard mode: MAME's natural keyboard is configured with queue_chars/accept_char
+  so that the host OS layout (e.g. Danish) is used; characters are passed through as
+  Latin-1 (0-255).  Enable via Keyboard Selection menu -> Keyboard Mode -> Natural.
+- prom1 (line program ROM) is undumped; the region is filled with 0xff to avoid a missing-ROM
+  warning.
 
 ****************************************************************************************************************/
 
@@ -39,6 +50,7 @@ Issues:
 #include "video/i8275.h"
 
 #include "emupal.h"
+#include "natkeyboard.h"
 #include "screen.h"
 #include "speaker.h"
 
@@ -88,6 +100,11 @@ private:
 	I8275_DRAW_CHARACTER_MEMBER(display_pixels);
 	void rc702_palette(palette_device &palette) const;
 	void kbd_put(u8 data);
+	void kbd_break();
+	uint8_t pio_port_a_r();
+	int queue_chars(const char32_t *text, size_t text_len);
+	bool accept_char(char32_t ch);
+	bool charqueue_empty() { return true; }
 
 	void io_map(address_map &map) ATTR_COLD;
 	void mem_map(address_map &map) ATTR_COLD;
@@ -98,6 +115,10 @@ private:
 	uint16_t m_beepcnt = 0U;
 	bool m_eop = false;
 	bool m_dack1 = false;
+	uint8_t m_kbd_data = 0U;
+	attotime m_last_kbd_time;
+	uint8_t m_last_kbd_data = 0U;
+	bool m_kbd_repeat_started = false;
 	required_device<palette_device> m_palette;
 	required_device<z80_device> m_maincpu;
 	required_region_ptr<u8> m_rom;
@@ -174,6 +195,8 @@ void rc702_state::machine_reset()
 	m_beepcnt = 0xffff;
 	m_dack1 = 0;
 	m_eop = 0;
+	m_kbd_data = 0;
+	m_kbd_repeat_started = false;
 	m_7474->preset_w(1);
 	m_fdc->set_ready_line_connected(1); // always ready for minifloppy; controlled by fdc for 20cm
 	m_fdc->set_unscaled_clock(4000000); // 4MHz for minifloppy; 8MHz for 20cm
@@ -192,6 +215,15 @@ void rc702_state::machine_start()
 	save_item(NAME(m_beepcnt));
 	save_item(NAME(m_eop));
 	save_item(NAME(m_dack1));
+	save_item(NAME(m_kbd_data));
+	save_item(NAME(m_last_kbd_time));
+	save_item(NAME(m_last_kbd_data));
+	save_item(NAME(m_kbd_repeat_started));
+
+	machine().natkeyboard().configure(
+			ioport_queue_chars_delegate(&rc702_state::queue_chars, this),
+			ioport_accept_char_delegate(&rc702_state::accept_char, this),
+			ioport_charqueue_empty_delegate(&rc702_state::charqueue_empty, this));
 }
 
 void rc702_state::q_w(int state)
@@ -340,9 +372,67 @@ static const z80_daisy_config daisy_chain_intf[] =
 
 void rc702_state::kbd_put(u8 data)
 {
-	m_pio->port_a_write(data);
+	// Long initial delay before first repeat (1.5 s), then repeat at ~2 per second.
+	// Key release (kbd_break) clears m_last_kbd_data so next press is always a new keypress.
+	attotime const now(machine().time());
+	bool send = false;
+	if (data != m_last_kbd_data)
+	{
+		// New key or first press after release
+		m_last_kbd_data = data;
+		m_last_kbd_time = now;
+		m_kbd_repeat_started = false;
+		send = true;
+	}
+	else if (!m_kbd_repeat_started)
+	{
+		if ((now - m_last_kbd_time) >= attotime::from_msec(1500))
+		{
+			m_kbd_repeat_started = true;
+			m_last_kbd_time = now;
+			send = true;
+		}
+	}
+	else if ((now - m_last_kbd_time) >= attotime::from_msec(500))
+	{
+		m_last_kbd_time = now;
+		send = true;
+	}
+	if (send)
+	{
+		m_kbd_data = data;
+		m_pio->strobe_a(0);
+		m_pio->strobe_a(1);
+	}
+}
+
+void rc702_state::kbd_break()
+{
+	// Key released: next key_make will be treated as new keypress (not typematic)
+	m_last_kbd_data = 0xff;
+}
+
+uint8_t rc702_state::pio_port_a_r()
+{
+	return m_kbd_data;
+}
+
+int rc702_state::queue_chars(const char32_t *text, size_t text_len)
+{
+	if (!text_len)
+		return 0;
+	// CP/M uses single-byte characters; pass through Latin-1, replace others
+	char32_t const ch = text[0];
+	uint8_t const b = (ch < 0x100) ? uint8_t(ch) : uint8_t('?');
+	m_kbd_data = b;
 	m_pio->strobe_a(0);
 	m_pio->strobe_a(1);
+	return 1;
+}
+
+bool rc702_state::accept_char(char32_t ch)
+{
+	return ch < 0x100;
 }
 
 static void floppies(device_slot_interface &device)
@@ -370,6 +460,7 @@ void rc702_state::rc702(machine_config &config)
 	dart.out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 
 	Z80PIO(config, m_pio, 8_MHz_XTAL / 2);
+	m_pio->in_pa_callback().set(FUNC(rc702_state::pio_port_a_r));
 	m_pio->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 //  m_pio->out_pb_callback().set(FUNC(rc702_state::portxx_w)); // parallel port
 
@@ -392,6 +483,7 @@ void rc702_state::rc702(machine_config &config)
 	/* Keyboard */
 	generic_keyboard_device &keyboard(GENERIC_KEYBOARD(config, "keyboard", 0));
 	keyboard.set_keyboard_callback(FUNC(rc702_state::kbd_put));
+	keyboard.set_keyboard_break_callback(FUNC(rc702_state::kbd_break));
 
 	TTL7474(config, m_7474, 0);
 	m_7474->output_cb().set(FUNC(rc702_state::q_w));
@@ -430,7 +522,7 @@ ROM_START( rc702 )
 	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800,  CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(2))
 
 	ROM_REGION( 0x0800, "prom1", ROMREGION_ERASEFF )
-	ROM_LOAD( "prom1.ic65", 0x0000, 0x0800, NO_DUMP ) // line program ROM (ROB388 on MIC705)
+	ROM_FILL( 0x0000, 0x0800, 0xff ) // line program ROM (ROB388 on MIC705) - undumped prom1.ic65
 
 	ROM_REGION( 0x1000, "chargen", 0 )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) ) // char

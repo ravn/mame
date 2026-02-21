@@ -86,6 +86,13 @@ public:
 		m_keyboard_cb.set(std::forward<T>(args)...);
 	}
 
+	/** Optional: called on key release so drivers can distinguish new keypress from typematic repeat. */
+	template <typename... T>
+	void set_keyboard_break_callback(T &&... args)
+	{
+		m_keyboard_break_cb.set(std::forward<T>(args)...);
+	}
+
 	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
 
 protected:
@@ -99,6 +106,7 @@ protected:
 	virtual void device_reset() override ATTR_COLD;
 	virtual void key_make(u8 row, u8 column) override;
 	virtual void key_repeat(u8 row, u8 column) override;
+	virtual void key_break(u8 row, u8 column) override;
 	virtual void send_key(u8 code);
 	virtual bool translate(u8 code, u8 &translated) const;
 
@@ -115,6 +123,7 @@ private:
 
 	u16             m_last_modifiers;
 	output_delegate m_keyboard_cb;
+	device_delegate<void ()> m_keyboard_break_cb;
 };
 
 #endif // MAME_MACHINE_KEYBOARD_H

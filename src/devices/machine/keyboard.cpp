@@ -258,6 +258,7 @@ generic_keyboard_device::generic_keyboard_device(
 	, m_modifiers(*this, "GENKBD_MOD")
 	, m_last_modifiers(0U)
 	, m_keyboard_cb(*this)
+	, m_keyboard_break_cb(*this)
 {
 }
 
@@ -281,6 +282,7 @@ ioport_constructor generic_keyboard_device::device_input_ports() const
 void generic_keyboard_device::device_start()
 {
 	m_keyboard_cb.resolve_safe();
+	m_keyboard_break_cb.resolve();
 
 	save_item(NAME(m_last_modifiers));
 }
@@ -306,6 +308,14 @@ void generic_keyboard_device::key_make(u8 row, u8 column)
 void generic_keyboard_device::key_repeat(u8 row, u8 column)
 {
 	send_translated((row << 4) | column);
+}
+
+// Optional break callback lets drivers treat next key_make as new keypress (not typematic)
+void generic_keyboard_device::key_break(u8 row, u8 column)
+{
+	if (!m_keyboard_break_cb.isnull())
+		m_keyboard_break_cb();
+	device_matrix_keyboard_interface<4U>::key_break(row, column);
 }
 
 

@@ -8,9 +8,18 @@ The RC702 is a 8-bit Z80 machine with either 8" external floppy drives or built-
 
 The RC750 Partner/RC759 Piccoline was their 16-bit machine based on 80186, with the Partner targetting businesses and the Piccoline targetting the Danish school system.  It ran the technically superior CCP/M-86 system which allowed for 4 virtual consoles, but wasn't 100% compatible with the IBM PC.
 
+## RC702: Keyboard
+
+The RC702 keyboard is connected to Z80 PIO port A.  The driver wires the generic keyboard and (optionally) MAME’s natural keyboard into the PIO so that CP/M sees keypresses.
+
+- **Emulated keyboard**: US-ASCII layout; typematic repeat is throttled (first repeat after 1.5 s, then about 2 per second).  Key release is used so that repeated keys (e.g. "DDT") are not doubled or dropped.
+- **Natural keyboard**: In the MAME menu, choose **Keyboard Selection** → **Keyboard Mode** → **Natural** to use the host OS layout (e.g. Danish: Shift+2 → `"`, Æ/Ø keys correct).  Characters are sent as Latin-1 (0–255).
+
+Some timing/duplication edge cases may still occur; the logic is documented in the keyboard comments in `rc702.cpp`.
+
 ## Source Files
 
-- [`rc702.cpp`](rc702.cpp): Implements the driver and emulation logic for the Regnecentralen RC700 computer, including Z80 CPU, memory mapping, and device support.
+- [`rc702.cpp`](rc702.cpp): Implements the driver and emulation logic for the Regnecentralen RC702 Piccolo, including Z80 CPU, memory mapping, PIO keyboard path, and device support.
 - [`rc759.cpp`](rc759.cpp): Contains the driver for the Regnecentralen RC759 Piccoline, handling system emulation, peripherals, and video output.
 - [`rc759_kbd.h`](rc759_kbd.h):  
 - [`rc759_kbd.cpp`](rc759_kbd.cpp): Emulation of the keyboard scanning input
@@ -28,10 +37,11 @@ make SUBTARGET=regnecentralen DEBUG=1 SOURCES=src/mame/regnecentralen/rc702.cpp 
 and run it similar to:
 
 ```sh
-./regnecentralen rc702 -debug -window -skip_gameinfo -nothrottle -flop1 ../../Downloads/COMAL_v1.07_SYSTEM_RC702.imd
+./regnecentralend rc702 -debug -window -skip_gameinfo -nothrottle -flop1 ../../Downloads/COMAL_v1.07_SYSTEM_RC702.imd
+./regnecentralend rc702 -bios 2 -window -skip_gameinfo -nothrottle -flop1 ~/Downloads/CPM_med_COMAL80.imd
 ```
 
-You should get a yellow screen saying either "** NO PROGRAM OR LINEPROG" which is the ROM saying it cannot find a boot sector on the floppy, or "** BAD DISKETTE" which mean that the sanity check on the diskette read failed.
+You should get a yellow screen saying either "** NO PROGRAM OR LINEPROG" which is the ROM saying it cannot find a boot sector on the floppy, or "** BAD DISKETTE" which mean that the sanity check on the diskette read failed.   This is most likely because the disk drive emulated is not compatible with the image.
 
 
 ## References:
