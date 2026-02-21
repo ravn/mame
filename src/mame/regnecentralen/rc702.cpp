@@ -15,7 +15,8 @@ ToDo:
 - Other things
 
 Issues:
-- Floppy disc error. It reads 0x780 bytes from the wrong sector then gives diskette error (use bios 0)
+- Keyboard input looks like ^ü - which is what the CCP shows for ascii 0.
+- There needs to be a RC702 with 5,25" drives (mini) in addition to the (QD) one.   Currently overriden to mini.
 
 
 ****************************************************************************************************************/
@@ -346,7 +347,7 @@ void rc702_state::kbd_put(u8 data)
 
 static void floppies(device_slot_interface &device)
 {
-	device.option_add("525qd", FLOPPY_525_QD);
+	device.option_add("525dd", FLOPPY_525_DD);
 }
 
 void rc702_state::rc702(machine_config &config)
@@ -386,7 +387,7 @@ void rc702_state::rc702(machine_config &config)
 	UPD765A(config, m_fdc, 8_MHz_XTAL, true, true);
 	m_fdc->intrq_wr_callback().set(m_ctc1, FUNC(z80ctc_device::trg3));
 	m_fdc->drq_wr_callback().set(m_dma, FUNC(am9517a_device::dreq1_w));
-	FLOPPY_CONNECTOR(config, "fdc:0", floppies, "525qd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false); //true);
+	FLOPPY_CONNECTOR(config, "fdc:0", floppies, "525dd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false); //true);
 
 	/* Keyboard */
 	generic_keyboard_device &keyboard(GENERIC_KEYBOARD(config, "keyboard", 0));

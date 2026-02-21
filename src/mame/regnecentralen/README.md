@@ -22,7 +22,7 @@ For now, copy '*.rom' from a clone of https://github.com/ringgaard/rc700 to `mam
 Now build MAME using something like (-j10 requires a modern machine):
 
 ```sh
-make SUBTARGET=regnecentralen SOURCES=src/mame/regnecentralen/rc702.cpp TOOLS=1 SYMLEVEL=3  SYMBOLS=1 -j 10
+make SUBTARGET=regnecentralen DEBUG=1 SOURCES=src/mame/regnecentralen/rc702.cpp TOOLS=1 SYMLEVEL=3  SYMBOLS=1 -j 10
 ```
 
 and run it similar to:
