@@ -20,10 +20,10 @@ Issues:
 Keyboard (PIO port A):
 - The real machine connects the keyboard to Z80 PIO port A.  The driver feeds key data via
   the PIO's in_pa_callback(); the BIOS/CP/M reads the data register and is signalled by strobe.
-- Emulated mode: GENERIC_KEYBOARD calls kbd_put(character) on key make/repeat and kbd_break()
-  on key release.  We throttle typematic: first repeat after 1.5 s, then ~2/s.  kbd_break()
-  resets state so the next key press is always treated as new (avoids double characters when
-  typing repeated keys like "DDT").
+- Emulated mode: one character per keypress only, no typematic repeat.  kbd_put() sends only
+  when the key is new (data != m_last_kbd_data); kbd_break() sets m_last_kbd_data = 0xff on
+  release so the next key_make is always treated as new.  Typematic callbacks from the
+  generic keyboard are ignored (same key, not sent).
 - Natural keyboard mode: MAME's natural keyboard is configured with queue_chars/accept_char
   so that the host OS layout (e.g. Danish) is used; characters are passed through as
   Latin-1 (0-255).  Enable via Keyboard Selection menu -> Keyboard Mode -> Natural.
@@ -116,9 +116,7 @@ private:
 	bool m_eop = false;
 	bool m_dack1 = false;
 	uint8_t m_kbd_data = 0U;
-	attotime m_last_kbd_time;
-	uint8_t m_last_kbd_data = 0U;
-	bool m_kbd_repeat_started = false;
+	uint8_t m_last_kbd_data = 0U;  // 0xff after release so next key is always "new"
 	required_device<palette_device> m_palette;
 	required_device<z80_device> m_maincpu;
 	required_region_ptr<u8> m_rom;
@@ -196,7 +194,7 @@ void rc702_state::machine_reset()
 	m_dack1 = 0;
 	m_eop = 0;
 	m_kbd_data = 0;
-	m_kbd_repeat_started = false;
+	m_last_kbd_data = 0xff;
 	m_7474->preset_w(1);
 	m_fdc->set_ready_line_connected(1); // always ready for minifloppy; controlled by fdc for 20cm
 	m_fdc->set_unscaled_clock(4000000); // 4MHz for minifloppy; 8MHz for 20cm
@@ -216,9 +214,7 @@ void rc702_state::machine_start()
 	save_item(NAME(m_eop));
 	save_item(NAME(m_dack1));
 	save_item(NAME(m_kbd_data));
-	save_item(NAME(m_last_kbd_time));
 	save_item(NAME(m_last_kbd_data));
-	save_item(NAME(m_kbd_repeat_started));
 
 	machine().natkeyboard().configure(
 			ioport_queue_chars_delegate(&rc702_state::queue_chars, this),
@@ -372,34 +368,12 @@ static const z80_daisy_config daisy_chain_intf[] =
 
 void rc702_state::kbd_put(u8 data)
 {
-	// Long initial delay before first repeat (1.5 s), then repeat at ~2 per second.
-	// Key release (kbd_break) clears m_last_kbd_data so next press is always a new keypress.
-	attotime const now(machine().time());
-	bool send = false;
+	// One character per keypress only.  kbd_break sets m_last_kbd_data = 0xff on release,
+	// so the next kbd_put (key_make) always has data != m_last_kbd_data and we send.
+	// Typematic repeats from the generic keyboard have data == m_last_kbd_data; we ignore them.
 	if (data != m_last_kbd_data)
 	{
-		// New key or first press after release
 		m_last_kbd_data = data;
-		m_last_kbd_time = now;
-		m_kbd_repeat_started = false;
-		send = true;
-	}
-	else if (!m_kbd_repeat_started)
-	{
-		if ((now - m_last_kbd_time) >= attotime::from_msec(1500))
-		{
-			m_kbd_repeat_started = true;
-			m_last_kbd_time = now;
-			send = true;
-		}
-	}
-	else if ((now - m_last_kbd_time) >= attotime::from_msec(500))
-	{
-		m_last_kbd_time = now;
-		send = true;
-	}
-	if (send)
-	{
 		m_kbd_data = data;
 		m_pio->strobe_a(0);
 		m_pio->strobe_a(1);
@@ -408,8 +382,7 @@ void rc702_state::kbd_put(u8 data)
 
 void rc702_state::kbd_break()
 {
-	// Key released: next key_make will be treated as new keypress (not typematic)
-	m_last_kbd_data = 0xff;
+	m_last_kbd_data = 0xff;  // next key_make is a new keypress
 }
 
 uint8_t rc702_state::pio_port_a_r()
