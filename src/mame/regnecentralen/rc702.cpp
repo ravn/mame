@@ -588,4 +588,4 @@ ROM_END
 COMP( 1979, rc702,     0,      0,      rc702,     rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo (8\")",        MACHINE_SUPPORTS_SAVE )
 COMP( 1979, rc702mini, rc702,  0,      rc702mini, rc702_mini,  rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo (5.25\")",     MACHINE_SUPPORTS_SAVE )
 COMP( 1982, rc703,     rc702,  0,      rc703,     rc702_mini,  rc702_state, empty_init, "Regnecentralen", "RC703 Piccolo (5.25\")",     MACHINE_SUPPORTS_SAVE )
-COMP( 1982, rc703maxi, rc702,  0,      rc703maxi, rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC703 Piccolo (8\")",        MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
+COMP( 1982, rc703maxi, rc702,  0,      rc703maxi, rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC703 Piccolo (8\")",        MACHINE_SUPPORTS_SAVE )
