@@ -59,6 +59,34 @@ and run it similar to:
 
 You should get a yellow screen saying either "** NO PROGRAM OR LINEPROG" which is the ROM saying it cannot find a boot sector on the floppy, or "** BAD DISKETTE" which mean that the sanity check on the diskette read failed.   This is most likely because the disk drive emulated is not compatible with the image.
 
+## RC759 - Getting started
+
+See https://rc700.dk/emulator.php for details about previous emulator work.
+
+Get the necessary ROMs:
+
+```sh
+OUTPUT_DIR=../../../roms/rc759
+mkdir -p $OUTPUT_DIR
+curl --output-dir $OUTPUT_DIR -L -O http://www.hampa.ch/pce/rom/rc759/rc759-1-2.1.rom
+curl --output-dir $OUTPUT_DIR -L -O http://www.hampa.ch/pce/rom/rc759/rc759-1-5.1.rom
+curl --output-dir $OUTPUT_DIR -L -O http://www.hampa.ch/pce/rom/rc759/rc759-2-4.0.rom
+curl --output-dir $OUTPUT_DIR -L -O http://www.hampa.ch/pce/rom/rc759/rc759-2-5.1.rom
+echo "*** All ROMS should be 32768 bytes ***"
+ls -l $OUTPUT_DIR
+```
+
+Now build MAME using something like (-j10 requires a modern machine):
+
+```sh
+make SUBTARGET=regnecentralen DEBUG=1 SOURCES=src/mame/regnecentralen/rc759.cpp TOOLS=1 SYMLEVEL=3  SYMBOLS=1  OSD=sdl -j 10
+```
+
+and run it similar to:
+
+```sh
+./regnecentralend rc759 -window
+```
 
 ## References:
 

@@ -679,4 +679,4 @@ ROM_END
 //**************************************************************************
 
 //    YEAR  NAME   PARENT  COMPAT  MACHINE  INPUT  CLASS        INIT        COMPANY           FULLNAME           FLAGS
-COMP( 1984, rc759, 0,      0,      rc759,   rc759, rc759_state, empty_init, "Regnecentralen", "RC759 Piccoline", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+COMP( 1984, rc759, 0,      0,      rc759,   rc759, rc759_state, empty_init, "Regnecentralen", "RC759 Piccoline", MACHINE_SUPPORTS_SAVE)
