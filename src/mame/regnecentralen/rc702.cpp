@@ -16,9 +16,9 @@ Machine variants:
   rc703maxi  - RC703 with 8" DSDD floppy drives (maxi), 8 MHz FDC
 
 ToDo:
-- Printer
 - Hard drive for RC703, ports 0x60-0x67. Extra CTC on HD board, ports 0x44-0x47
 - Keyboard MCU (8048 + 2758) — currently using generic_keyboard
+- PIO port B is not yet used in the BIOS.
 
 Keyboard (PIO port A):
 - The real machine connects the keyboard to Z80 PIO port A.  The driver feeds key data via
@@ -72,6 +72,8 @@ public:
 		, m_7474(*this, "7474")
 		, m_fdc(*this, "fdc")
 		, m_floppy0(*this, "fdc:0")
+		, m_rs232a(*this, "rs232a")
+		, m_rs232b(*this, "rs232b")
 	{ }
 
 	void rc702_base(machine_config &config);
@@ -126,6 +128,8 @@ private:
 	required_device<ttl7474_device> m_7474;
 	required_device<upd765a_device> m_fdc;
 	required_device<floppy_connector> m_floppy0;
+	required_device<rs232_port_device> m_rs232a;
+	required_device<rs232_port_device> m_rs232b;
 };
 
 
@@ -434,6 +438,20 @@ void rc702_state::rc702_base(machine_config &config)
 
 	z80dart_device& dart(Z80DART(config, "sio1", XTAL(8'000'000) / 2));
 	dart.out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+	dart.out_txda_callback().set("rs232a", FUNC(rs232_port_device::write_txd));
+	dart.out_rtsa_callback().set("rs232a", FUNC(rs232_port_device::write_rts));
+	dart.out_dtra_callback().set("rs232a", FUNC(rs232_port_device::write_dtr));
+	dart.out_txdb_callback().set("rs232b", FUNC(rs232_port_device::write_txd));
+	dart.out_rtsb_callback().set("rs232b", FUNC(rs232_port_device::write_rts));
+	dart.out_dtrb_callback().set("rs232b", FUNC(rs232_port_device::write_dtr));
+
+	RS232_PORT(config, m_rs232a, default_rs232_devices, nullptr);
+	m_rs232a->rxd_handler().set("sio1", FUNC(z80dart_device::rxa_w));
+	m_rs232a->cts_handler().set("sio1", FUNC(z80dart_device::ctsa_w));
+
+	RS232_PORT(config, m_rs232b, default_rs232_devices, nullptr);
+	m_rs232b->rxd_handler().set("sio1", FUNC(z80dart_device::rxb_w));
+	m_rs232b->cts_handler().set("sio1", FUNC(z80dart_device::ctsb_w));
 
 	Z80PIO(config, m_pio, 8_MHz_XTAL / 2);
 	m_pio->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
