@@ -3,9 +3,11 @@
 license:BSD-3-Clause
 copyright-holders:MAMEdev Team
 
-RC702 display layout — 2x default size, 20-pixel border in screen background colour.
-Screen content: 80 cols × 7px = 560px wide, 25 rows × 11 scanlines = 275px tall.
-At 2x: screen 1120×550, border 20px each side, view 1160×590.
+RC702 display layout — correct 4:3 PAR, 20-pixel border in screen background colour.
+i8275 timing: total raster 756×308 (horiz 80+28 chars × 7px, vert 25+3 rows × 11 lines).
+PAR = (4×308)/(3×756) = 0.543 — pixels are ~1.84× taller than wide on a 4:3 monitor.
+Active content: 560×275 raw pixels → 608×550 at 2× scale with correct PAR.
+Border 20px each side → view 648×590.
 Background colour matches rc702_palette pen 0: rgb(0xC0, 0x60, 0x00).
 -->
 <mamelayout version="2">
@@ -17,12 +19,12 @@ Background colour matches rc702_palette pen 0: rgb(0xC0, 0x60, 0x00).
 	</element>
 
 	<view name="Standard">
-		<bounds x="0" y="0" width="1160" height="590" />
+		<bounds x="0" y="0" width="648" height="590" />
 		<element ref="bg">
-			<bounds x="0" y="0" width="1160" height="590" />
+			<bounds x="0" y="0" width="648" height="590" />
 		</element>
 		<screen index="0">
-			<bounds x="20" y="20" width="1120" height="550" />
+			<bounds x="20" y="20" width="608" height="550" />
 		</screen>
 	</view>
 
