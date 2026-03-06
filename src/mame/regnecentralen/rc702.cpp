@@ -49,6 +49,8 @@ Keyboard (PIO port A):
 #include "screen.h"
 #include "speaker.h"
 
+#include "rc702.lh"
+
 
 namespace {
 
@@ -489,6 +491,8 @@ void rc702_state::rc702_base(machine_config &config)
 	crtc.drq_wr_callback().set(FUNC(rc702_state::crtc_drq_w));
 
 	PALETTE(config, m_palette, FUNC(rc702_state::rc702_palette), 2);
+
+	config.set_default_layout(layout_rc702);
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
