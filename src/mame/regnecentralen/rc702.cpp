@@ -342,7 +342,13 @@ I8275_DRAW_CHARACTER_MEMBER( rc702_state::display_pixels )
 	using namespace i8275_attributes;
 
 	if (!BIT(attrcode, VSP))
-		gfx = m_p_chargen[(linecount & 15) | (charcode << 4)];
+	{
+		// GPA0 from field attribute selects ROA327 (semigraphics) vs ROA296 (main chargen)
+		uint16_t offset = (linecount & 15) | (charcode << 4);
+		if (BIT(attrcode, GPA0))
+			offset |= 0x800;
+		gfx = m_p_chargen[offset];
+	}
 
 	if (BIT(attrcode, LTEN))
 		gfx = 0xff;
@@ -351,13 +357,14 @@ I8275_DRAW_CHARACTER_MEMBER( rc702_state::display_pixels )
 		gfx ^= 0xff;
 
 	// Highlight not used
+	// Bits 0-6 are the 7 visible pixels (bit 7 unused in both ROA296 and ROA327 ROMs)
+	bitmap.pix(y, x++) = palette[BIT(gfx, 0) ? 1 : 0];
 	bitmap.pix(y, x++) = palette[BIT(gfx, 1) ? 1 : 0];
 	bitmap.pix(y, x++) = palette[BIT(gfx, 2) ? 1 : 0];
 	bitmap.pix(y, x++) = palette[BIT(gfx, 3) ? 1 : 0];
 	bitmap.pix(y, x++) = palette[BIT(gfx, 4) ? 1 : 0];
 	bitmap.pix(y, x++) = palette[BIT(gfx, 5) ? 1 : 0];
 	bitmap.pix(y, x++) = palette[BIT(gfx, 6) ? 1 : 0];
-	bitmap.pix(y, x++) = palette[BIT(gfx, 7) ? 1 : 0];
 }
 
 // Baud rate generator. All inputs are 0.614MHz.
