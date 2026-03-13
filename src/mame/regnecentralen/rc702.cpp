@@ -511,7 +511,7 @@ void rc702_state::rc702(machine_config &config)
 	m_dma->out_dack_callback<1>().set(FUNC(rc702_state::dack1_w));
 
 	FLOPPY_CONNECTOR(config, "fdc:0", rc702_floppies, "8dsdd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
-	FLOPPY_CONNECTOR(config, "fdc:1", rc702_floppies, nullptr, floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
+	FLOPPY_CONNECTOR(config, "fdc:1", rc702_floppies, "8dsdd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
 }
 
 void rc702_state::rc702mini(machine_config &config)
@@ -526,7 +526,7 @@ void rc702_state::rc702mini(machine_config &config)
 	m_dma->out_dack_callback<1>().set(FUNC(rc702_state::dack1_w));
 
 	FLOPPY_CONNECTOR(config, "fdc:0", rc702mini_floppies, "525dd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
-	FLOPPY_CONNECTOR(config, "fdc:1", rc702mini_floppies, nullptr, floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
+	FLOPPY_CONNECTOR(config, "fdc:1", rc702mini_floppies, "525dd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
 }
 
 void rc702_state::rc703(machine_config &config)
@@ -541,7 +541,7 @@ void rc702_state::rc703(machine_config &config)
 	m_dma->out_dack_callback<1>().set(FUNC(rc702_state::dack1_w));
 
 	FLOPPY_CONNECTOR(config, "fdc:0", rc703_floppies, "525qd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
-	FLOPPY_CONNECTOR(config, "fdc:1", rc703_floppies, nullptr, floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
+	FLOPPY_CONNECTOR(config, "fdc:1", rc703_floppies, "525qd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
 	// TODO: Hard disk ports 0x60-0x67, CTC2 ports 0x44-0x47
 }
 
