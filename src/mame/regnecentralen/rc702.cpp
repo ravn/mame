@@ -65,7 +65,9 @@ public:
 		, m_rom_prom1(*this, "prom1")
 		, m_ram(*this, "mainram")
 		, m_bank1(*this, "bank1")
+		, m_bank1h(*this, "bank1h")
 		, m_bank2(*this, "bank2")
+		, m_bank2h(*this, "bank2h")
 		, m_p_chargen(*this, "chargen")
 		, m_ctc1(*this, "ctc1")
 		, m_pio(*this, "pio")
@@ -121,7 +123,9 @@ private:
 	required_region_ptr<u8> m_rom_prom1;
 	required_shared_ptr<u8> m_ram;
 	required_memory_bank    m_bank1;
+	required_memory_bank    m_bank1h;
 	required_memory_bank    m_bank2;
+	required_memory_bank    m_bank2h;
 	required_region_ptr<u8> m_p_chargen;
 	required_device<z80ctc_device> m_ctc1;
 	required_device<z80pio_device> m_pio;
@@ -139,7 +143,9 @@ void rc702_state::mem_map(address_map &map)
 {
 	map(0x0000, 0xffff).ram().share("mainram");
 	map(0x0000, 0x07ff).bankr("bank1");
+	map(0x0800, 0x0fff).bankr("bank1h");
 	map(0x2000, 0x27ff).bankr("bank2");
+	map(0x2800, 0x2fff).bankr("bank2h");
 }
 
 void rc702_state::io_map(address_map &map)
@@ -152,13 +158,27 @@ void rc702_state::io_map(address_map &map)
 	map(0x0c, 0x0f).rw(m_ctc1, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
 	map(0x10, 0x13).rw(m_pio, FUNC(z80pio_device::read), FUNC(z80pio_device::write));
 	map(0x14, 0x17).portr("DSW").w(FUNC(rc702_state::port14_w)); // motors
-	map(0x18, 0x1b).lw8(NAME([this] (u8 data) { m_bank1->set_entry(0); m_bank2->set_entry(0); })); // replace roms with ram
+	map(0x18, 0x1b).lw8(NAME([this] (u8 data) { m_bank1->set_entry(0); m_bank1h->set_entry(0); m_bank2->set_entry(0); m_bank2h->set_entry(0); })); // replace roms with ram
 	map(0x1c, 0x1f).w(FUNC(rc702_state::port1c_w)); // sound
 	map(0xf0, 0xff).rw(m_dma, FUNC(am9517a_device::read), FUNC(am9517a_device::write));
 }
 
+// PROM socket jumpers: select 2716 (2KB) or 2732 (4KB) EPROM.
+// Pin 21 of the EPROM socket is jumpered to either +5V (Vpp for 2716)
+// or address line A11 (for 2732).  See RC702 technical manual page 63.
+static INPUT_PORTS_START( rc702_promcfg )
+	PORT_START("PROMCFG")
+	PORT_CONFNAME( 0x01, 0x00, "PROM0 (IC66) Type")
+	PORT_CONFSETTING(    0x00, "2716 (2KB)")
+	PORT_CONFSETTING(    0x01, "2732 (4KB)")
+	PORT_CONFNAME( 0x02, 0x00, "PROM1 (IC65) Type")
+	PORT_CONFSETTING(    0x00, "2716 (2KB)")
+	PORT_CONFSETTING(    0x02, "2732 (4KB)")
+INPUT_PORTS_END
+
 /* Input ports - PROM reads port 0x14 bit 7: set=mini, clear=maxi */
 static INPUT_PORTS_START( rc702_maxi )
+	PORT_INCLUDE( rc702_promcfg )
 	PORT_START("DSW")
 	PORT_DIPNAME( 0x01, 0x00, "S01")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ))
@@ -187,6 +207,7 @@ static INPUT_PORTS_START( rc702_maxi )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( rc702_mini )
+	PORT_INCLUDE( rc702_promcfg )
 	PORT_START("DSW")
 	PORT_DIPNAME( 0x01, 0x00, "S01")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ))
@@ -216,8 +237,17 @@ INPUT_PORTS_END
 
 void rc702_state::machine_reset()
 {
+	// PROM lower halves always map to ROM
 	m_bank1->set_entry(1);
 	m_bank2->set_entry(1);
+
+	// PROM upper halves depend on jumper setting:
+	// 2716 (2KB): A11 not connected — upper half mirrors lower half
+	// 2732 (4KB): A11 active — upper half is distinct ROM data
+	uint8_t promcfg = ioport("PROMCFG")->read();
+	m_bank1h->set_entry(BIT(promcfg, 0) ? 2 : 1);  // 4K: ROM+0x800, 2K: mirror
+	m_bank2h->set_entry(BIT(promcfg, 1) ? 2 : 1);  // 4K: ROM+0x800, 2K: mirror
+
 	m_beepcnt = 0xffff;
 	m_dack1 = 0;
 	m_eop = 0;
@@ -232,10 +262,19 @@ void rc702_state::machine_reset()
 
 void rc702_state::machine_start()
 {
+	// Lower halves: entry 0 = RAM, entry 1 = ROM
 	m_bank1->configure_entry(0, m_ram);
 	m_bank1->configure_entry(1, m_rom);
 	m_bank2->configure_entry(0, &m_ram[0x2000]);
 	m_bank2->configure_entry(1, m_rom_prom1);
+
+	// Upper halves: entry 0 = RAM, entry 1 = mirror of lower ROM (2716), entry 2 = upper ROM (2732)
+	m_bank1h->configure_entry(0, &m_ram[0x0800]);
+	m_bank1h->configure_entry(1, &m_rom[0x0000]);        // 2KB mirror
+	m_bank1h->configure_entry(2, &m_rom[0x0800]);        // 4KB upper half
+	m_bank2h->configure_entry(0, &m_ram[0x2800]);
+	m_bank2h->configure_entry(1, &m_rom_prom1[0x0000]);  // 2KB mirror
+	m_bank2h->configure_entry(2, &m_rom_prom1[0x0800]);  // 4KB upper half
 	save_item(NAME(m_q_state));
 	save_item(NAME(m_qbar_state));
 	save_item(NAME(m_drq_state));
@@ -414,6 +453,18 @@ uint8_t rc702_state::kbd_r()
 	return m_kbd_data;
 }
 
+// Default RS232 settings for SIO Channel A (terminal/network port).
+// The RC702 BIOS configures SIO Ch.A for 38400 baud via CTC channel 0.
+// RTS flow control matches the BIOS ring buffer handshake.
+static DEVICE_INPUT_DEFAULTS_START( rs232a_defaults )
+	DEVICE_INPUT_DEFAULTS( "RS232_TXBAUD", 0xff, RS232_BAUD_38400 )
+	DEVICE_INPUT_DEFAULTS( "RS232_RXBAUD", 0xff, RS232_BAUD_38400 )
+	DEVICE_INPUT_DEFAULTS( "RS232_DATABITS", 0xff, RS232_DATABITS_8 )
+	DEVICE_INPUT_DEFAULTS( "RS232_PARITY", 0xff, RS232_PARITY_NONE )
+	DEVICE_INPUT_DEFAULTS( "RS232_STOPBITS", 0xff, RS232_STOPBITS_1 )
+	DEVICE_INPUT_DEFAULTS( "FLOW_CONTROL", 0x07, 0x01 )
+DEVICE_INPUT_DEFAULTS_END
+
 static void rc702_floppies(device_slot_interface &device)
 {
 	device.option_add("8dsdd", FLOPPY_8_DSDD);
@@ -454,7 +505,8 @@ void rc702_state::rc702_base(machine_config &config)
 	dart.out_rtsb_callback().set("rs232b", FUNC(rs232_port_device::write_rts));
 	dart.out_dtrb_callback().set("rs232b", FUNC(rs232_port_device::write_dtr));
 
-	RS232_PORT(config, m_rs232a, default_rs232_devices, nullptr);
+	RS232_PORT(config, m_rs232a, default_rs232_devices, "null_modem");
+	m_rs232a->set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(rs232a_defaults));
 	m_rs232a->rxd_handler().set("sio1", FUNC(z80dart_device::rxa_w));
 	m_rs232a->cts_handler().set("sio1", FUNC(z80dart_device::ctsa_w));
 
@@ -571,7 +623,7 @@ void rc702_state::rc703maxi(machine_config &config)
 
 /* ROM definition */
 ROM_START( rc702 )
-	ROM_REGION( 0x0800, "maincpu", 0 )
+	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF ) // 2716 (2KB) or 2732 (4KB), jumper-selectable
 	ROM_SYSTEM_BIOS(0, "rc702", "RC702")
 	ROMX_LOAD( "roa375.ic66", 0x0000, 0x0800, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084), ROM_BIOS(0))
 	ROM_SYSTEM_BIOS(1, "rc703", "RC703")
@@ -579,8 +631,8 @@ ROM_START( rc702 )
 	ROM_SYSTEM_BIOS(2, "rc700", "RC700")
 	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800,  CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(2))
 
-	ROM_REGION( 0x0800, "prom1", ROMREGION_ERASEFF )
-	ROM_FILL( 0x0000, 0x0800, 0xff ) // line program ROM (ROB388 on MIC705) - undumped prom1.ic65
+	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF ) // 2716 (2KB) or 2732 (4KB), jumper-selectable
+	ROM_FILL( 0x0000, 0x1000, 0xff ) // line program ROM (ROB388 on MIC705) - undumped prom1.ic65
 
 	ROM_REGION( 0x1000, "chargen", 0 )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) ) // char
@@ -589,7 +641,7 @@ ROM_END
 
 /* RC703 maxi: rob358 (RC700) as default BIOS */
 ROM_START( rc703maxi )
-	ROM_REGION( 0x0800, "maincpu", 0 )
+	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF ) // 2716 (2KB) or 2732 (4KB), jumper-selectable
 	ROM_SYSTEM_BIOS(0, "rc700", "RC700")
 	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800,  CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(0))
 	ROM_SYSTEM_BIOS(1, "rc702", "RC702")
@@ -597,8 +649,8 @@ ROM_START( rc703maxi )
 	ROM_SYSTEM_BIOS(2, "rc703", "RC703")
 	ROMX_LOAD( "rob357.rom", 0x0000, 0x0800,  CRC(dcf84a48) SHA1(7190d3a898bcbfa212178a4d36afc32bbbc166ef), ROM_BIOS(2))
 
-	ROM_REGION( 0x0800, "prom1", ROMREGION_ERASEFF )
-	ROM_FILL( 0x0000, 0x0800, 0xff )
+	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF ) // 2716 (2KB) or 2732 (4KB), jumper-selectable
+	ROM_FILL( 0x0000, 0x1000, 0xff )
 
 	ROM_REGION( 0x1000, "chargen", 0 )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) )
