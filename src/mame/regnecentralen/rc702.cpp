@@ -454,15 +454,15 @@ uint8_t rc702_state::kbd_r()
 }
 
 // Default RS232 settings for SIO Channel A (terminal/network port).
-// The RC702 BIOS configures SIO Ch.A for 38400 baud via CTC channel 0.
-// RTS flow control matches the BIOS ring buffer handshake.
+// Matches the distribution disk CONFI defaults: 1200 baud, 7 data bits, even parity.
+// Change via CONFI.COM to match your BIOS configuration.
 static DEVICE_INPUT_DEFAULTS_START( rs232a_defaults )
-	DEVICE_INPUT_DEFAULTS( "RS232_TXBAUD", 0xff, RS232_BAUD_38400 )
-	DEVICE_INPUT_DEFAULTS( "RS232_RXBAUD", 0xff, RS232_BAUD_38400 )
-	DEVICE_INPUT_DEFAULTS( "RS232_DATABITS", 0xff, RS232_DATABITS_8 )
-	DEVICE_INPUT_DEFAULTS( "RS232_PARITY", 0xff, RS232_PARITY_NONE )
+	DEVICE_INPUT_DEFAULTS( "RS232_TXBAUD", 0xff, RS232_BAUD_1200 )
+	DEVICE_INPUT_DEFAULTS( "RS232_RXBAUD", 0xff, RS232_BAUD_1200 )
+	DEVICE_INPUT_DEFAULTS( "RS232_DATABITS", 0xff, RS232_DATABITS_7 )
+	DEVICE_INPUT_DEFAULTS( "RS232_PARITY", 0xff, RS232_PARITY_EVEN )
 	DEVICE_INPUT_DEFAULTS( "RS232_STOPBITS", 0xff, RS232_STOPBITS_1 )
-	DEVICE_INPUT_DEFAULTS( "FLOW_CONTROL", 0x07, 0x01 )
+	DEVICE_INPUT_DEFAULTS( "FLOW_CONTROL", 0x07, 0x00 )
 DEVICE_INPUT_DEFAULTS_END
 
 static void rc702_floppies(device_slot_interface &device)
