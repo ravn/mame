@@ -102,6 +102,8 @@ private:
 	void q_w(int state);
 	void qbar_w(int state);
 	void dack1_w(int state);
+	void dack2_w(int state);
+	void dack3_w(int state);
 	I8275_DRAW_CHARACTER_MEMBER(display_pixels);
 	void rc702_palette(palette_device &palette) const;
 	void kbd_put(u8 data);
@@ -117,6 +119,8 @@ private:
 	uint16_t m_beepcnt = 0U;
 	bool m_eop = false;
 	bool m_dack1 = false;
+	bool m_dack2 = false;
+	bool m_dack3 = false;
 	required_device<palette_device> m_palette;
 	required_device<z80_device> m_maincpu;
 	required_region_ptr<u8> m_rom;
@@ -281,6 +285,8 @@ void rc702_state::machine_start()
 	save_item(NAME(m_beepcnt));
 	save_item(NAME(m_eop));
 	save_item(NAME(m_dack1));
+	save_item(NAME(m_dack2));
+	save_item(NAME(m_dack3));
 	save_item(NAME(m_kbd_data));
 }
 
@@ -302,6 +308,15 @@ void rc702_state::qbar_w(int state)
 		m_dma->dreq2_w(1);
 	else
 		m_dma->dreq2_w(0);
+
+	// Feed Qbar back into D so the 7474 toggles on each clock edge.
+	// Combined with EOP-driven clock_w (in eop_w below), this gives the
+	// dual-DMA "first ch.2 then ch.3" routing for the 8275 CRTC: at the
+	// start of each frame the CRTC IRQ clears the flop (Q=0/Qbar=1 → ch.2
+	// active), DMA ch.2 transfers its programmed byte count, EOP fires,
+	// the flop toggles (Q=1/Qbar=0 → ch.3 active), DMA ch.3 transfers
+	// the remaining bytes (e.g. a 26th status row).
+	m_7474->d_w(state);
 }
 
 void rc702_state::crtc_drq_w(int state)
@@ -330,6 +345,21 @@ void rc702_state::eop_w(int state)
 		m_fdc->tc_w(1);
 	else
 		m_fdc->tc_w(0);
+
+	// Clock the dual-DMA toggle flip-flop on every EOP edge.
+	// (Should ideally be gated by DACK2/3 to avoid FDC-EOP interference,
+	// but DACK timing in MAME may deassert before EOP fires; revisit.)
+	m_7474->clock_w(state);
+}
+
+void rc702_state::dack2_w(int state)
+{
+	m_dack2 = state;
+}
+
+void rc702_state::dack3_w(int state)
+{
+	m_dack3 = state;
 }
 
 void rc702_state::dack1_w(int state)
@@ -526,6 +556,8 @@ void rc702_state::rc702_base(machine_config &config)
 	m_dma->out_memw_callback().set(FUNC(rc702_state::memory_write_byte));
 	m_dma->out_iow_callback<2>().set("crtc", FUNC(i8275_device::dack_w));
 	m_dma->out_iow_callback<3>().set("crtc", FUNC(i8275_device::dack_w));
+	m_dma->out_dack_callback<2>().set(FUNC(rc702_state::dack2_w));
+	m_dma->out_dack_callback<3>().set(FUNC(rc702_state::dack3_w));
 
 	/* Keyboard */
 	generic_keyboard_device &keyboard(GENERIC_KEYBOARD(config, "keyboard", 0));
@@ -625,7 +657,7 @@ void rc702_state::rc703maxi(machine_config &config)
 ROM_START( rc702 )
 	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF ) // 2716 (2KB) or 2732 (4KB), jumper-selectable
 	ROM_SYSTEM_BIOS(0, "rc702", "RC702")
-	ROMX_LOAD( "roa375.ic66", 0x0000, 0x1000, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084), ROM_BIOS(0))
+	ROMX_LOAD( "roa375.ic66", 0x0000, 0x1000, CRC(6dbd088b) SHA1(bd4e84f3237d991bb97e15bac9e1fc4ee59eafc8), ROM_BIOS(0))
 	ROM_SYSTEM_BIOS(1, "rc703", "RC703")
 	ROMX_LOAD( "rob357.rom", 0x0000, 0x0800,  CRC(dcf84a48) SHA1(7190d3a898bcbfa212178a4d36afc32bbbc166ef), ROM_BIOS(1))
 	ROM_SYSTEM_BIOS(2, "rc700", "RC700")
@@ -645,7 +677,7 @@ ROM_START( rc703maxi )
 	ROM_SYSTEM_BIOS(0, "rc700", "RC700")
 	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800,  CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(0))
 	ROM_SYSTEM_BIOS(1, "rc702", "RC702")
-	ROMX_LOAD( "roa375.ic66", 0x0000, 0x1000, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084), ROM_BIOS(1))
+	ROMX_LOAD( "roa375.ic66", 0x0000, 0x1000, CRC(6dbd088b) SHA1(bd4e84f3237d991bb97e15bac9e1fc4ee59eafc8), ROM_BIOS(1))
 	ROM_SYSTEM_BIOS(2, "rc703", "RC703")
 	ROMX_LOAD( "rob357.rom", 0x0000, 0x0800,  CRC(dcf84a48) SHA1(7190d3a898bcbfa212178a4d36afc32bbbc166ef), ROM_BIOS(2))
 
