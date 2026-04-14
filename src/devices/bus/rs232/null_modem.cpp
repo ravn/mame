@@ -85,7 +85,8 @@ void null_modem_device::update_serial(int state)
 
 	output_rxd(1);
 
-	// TODO: make this configurable
+	// DCD=0 and DSR=0 means "asserted" in MAME's RS-232 convention
+	// (active-low). CTS=0 means "clear to send" (asserted).
 	output_dcd(0);
 	output_dsr(0);
 	output_cts(0);

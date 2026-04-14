@@ -453,14 +453,26 @@ uint8_t rc702_state::kbd_r()
 	return m_kbd_data;
 }
 
-// Default RS232 settings for SIO Channel A (terminal/network port).
-// Matches the distribution disk CONFI defaults: 1200 baud, 7 data bits, even parity.
-// Change via CONFI.COM to match your BIOS configuration.
+// Default RS232 settings for SIO Channel A (data/reader port).
+// Must match the BIOS CONFI block (boot_confi.c): 38400 baud, 8-N-1.
+// RTS flow control: BIOS deasserts RTS when ring buffer is nearly full,
+// null_modem pauses transmission until RTS is reasserted.
 static DEVICE_INPUT_DEFAULTS_START( rs232a_defaults )
-	DEVICE_INPUT_DEFAULTS( "RS232_TXBAUD", 0xff, RS232_BAUD_1200 )
-	DEVICE_INPUT_DEFAULTS( "RS232_RXBAUD", 0xff, RS232_BAUD_1200 )
-	DEVICE_INPUT_DEFAULTS( "RS232_DATABITS", 0xff, RS232_DATABITS_7 )
-	DEVICE_INPUT_DEFAULTS( "RS232_PARITY", 0xff, RS232_PARITY_EVEN )
+	DEVICE_INPUT_DEFAULTS( "RS232_TXBAUD", 0xff, RS232_BAUD_38400 )
+	DEVICE_INPUT_DEFAULTS( "RS232_RXBAUD", 0xff, RS232_BAUD_38400 )
+	DEVICE_INPUT_DEFAULTS( "RS232_DATABITS", 0xff, RS232_DATABITS_8 )
+	DEVICE_INPUT_DEFAULTS( "RS232_PARITY", 0xff, RS232_PARITY_NONE )
+	DEVICE_INPUT_DEFAULTS( "RS232_STOPBITS", 0xff, RS232_STOPBITS_1 )
+	DEVICE_INPUT_DEFAULTS( "FLOW_CONTROL", 0x07, 0x01 )
+DEVICE_INPUT_DEFAULTS_END
+
+// Default RS232 settings for SIO Channel B (reader/punch port).
+// Must match the BIOS CONFI block (boot_confi.c): 38400 baud, 8-N-1.
+static DEVICE_INPUT_DEFAULTS_START( rs232b_defaults )
+	DEVICE_INPUT_DEFAULTS( "RS232_TXBAUD", 0xff, RS232_BAUD_38400 )
+	DEVICE_INPUT_DEFAULTS( "RS232_RXBAUD", 0xff, RS232_BAUD_38400 )
+	DEVICE_INPUT_DEFAULTS( "RS232_DATABITS", 0xff, RS232_DATABITS_8 )
+	DEVICE_INPUT_DEFAULTS( "RS232_PARITY", 0xff, RS232_PARITY_NONE )
 	DEVICE_INPUT_DEFAULTS( "RS232_STOPBITS", 0xff, RS232_STOPBITS_1 )
 	DEVICE_INPUT_DEFAULTS( "FLOW_CONTROL", 0x07, 0x00 )
 DEVICE_INPUT_DEFAULTS_END
@@ -509,10 +521,13 @@ void rc702_state::rc702_base(machine_config &config)
 	m_rs232a->set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(rs232a_defaults));
 	m_rs232a->rxd_handler().set("sio1", FUNC(z80dart_device::rxa_w));
 	m_rs232a->cts_handler().set("sio1", FUNC(z80dart_device::ctsa_w));
+	m_rs232a->dcd_handler().set("sio1", FUNC(z80dart_device::dcda_w));
 
-	RS232_PORT(config, m_rs232b, default_rs232_devices, nullptr);
+	RS232_PORT(config, m_rs232b, default_rs232_devices, "null_modem");
+	m_rs232b->set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(rs232b_defaults));
 	m_rs232b->rxd_handler().set("sio1", FUNC(z80dart_device::rxb_w));
 	m_rs232b->cts_handler().set("sio1", FUNC(z80dart_device::ctsb_w));
+	m_rs232b->dcd_handler().set("sio1", FUNC(z80dart_device::dcdb_w));
 
 	Z80PIO(config, m_pio, 8_MHz_XTAL / 2);
 	m_pio->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
