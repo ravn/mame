@@ -154,7 +154,7 @@ void rc702_state::io_map(address_map &map)
 	map.unmap_value_high();
 	map(0x00, 0x01).rw("crtc", FUNC(i8275_device::read), FUNC(i8275_device::write));
 	map(0x04, 0x05).m(m_fdc, FUNC(upd765a_device::map));
-	map(0x08, 0x0b).rw("sio1", FUNC(z80dart_device::cd_ba_r), FUNC(z80dart_device::cd_ba_w)); // boot sequence doesn't program this
+	map(0x08, 0x0b).rw("sio1", FUNC(z80sio_device::cd_ba_r), FUNC(z80sio_device::cd_ba_w)); // boot sequence doesn't program this
 	map(0x0c, 0x0f).rw(m_ctc1, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
 	map(0x10, 0x13).rw(m_pio, FUNC(z80pio_device::read), FUNC(z80pio_device::write));
 	map(0x14, 0x17).portr("DSW").w(FUNC(rc702_state::port14_w)); // motors
@@ -503,12 +503,12 @@ void rc702_state::rc702_base(machine_config &config)
 	CLOCK(config, "ctc_clock", 614000).signal_handler().set(FUNC(rc702_state::clock_w));
 
 	Z80CTC(config, m_ctc1, 8_MHz_XTAL / 2);
-	m_ctc1->zc_callback<0>().set("sio1", FUNC(z80dart_device::txca_w));
-	m_ctc1->zc_callback<0>().append("sio1", FUNC(z80dart_device::rxca_w));
-	m_ctc1->zc_callback<1>().set("sio1", FUNC(z80dart_device::rxtxcb_w));
+	m_ctc1->zc_callback<0>().set("sio1", FUNC(z80sio_device::txca_w));
+	m_ctc1->zc_callback<0>().append("sio1", FUNC(z80sio_device::rxca_w));
+	m_ctc1->zc_callback<1>().set("sio1", FUNC(z80sio_device::rxtxcb_w));
 	m_ctc1->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 
-	z80dart_device& dart(Z80DART(config, "sio1", XTAL(8'000'000) / 2));
+	z80sio_device& dart(Z80SIO(config, "sio1", XTAL(8'000'000) / 2));
 	dart.out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 	dart.out_txda_callback().set("rs232a", FUNC(rs232_port_device::write_txd));
 	dart.out_rtsa_callback().set("rs232a", FUNC(rs232_port_device::write_rts));
@@ -519,15 +519,15 @@ void rc702_state::rc702_base(machine_config &config)
 
 	RS232_PORT(config, m_rs232a, default_rs232_devices, "null_modem");
 	m_rs232a->set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(rs232a_defaults));
-	m_rs232a->rxd_handler().set("sio1", FUNC(z80dart_device::rxa_w));
-	m_rs232a->cts_handler().set("sio1", FUNC(z80dart_device::ctsa_w));
-	m_rs232a->dcd_handler().set("sio1", FUNC(z80dart_device::dcda_w));
+	m_rs232a->rxd_handler().set("sio1", FUNC(z80sio_device::rxa_w));
+	m_rs232a->cts_handler().set("sio1", FUNC(z80sio_device::ctsa_w));
+	m_rs232a->dcd_handler().set("sio1", FUNC(z80sio_device::dcda_w));
 
 	RS232_PORT(config, m_rs232b, default_rs232_devices, "null_modem");
 	m_rs232b->set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(rs232b_defaults));
-	m_rs232b->rxd_handler().set("sio1", FUNC(z80dart_device::rxb_w));
-	m_rs232b->cts_handler().set("sio1", FUNC(z80dart_device::ctsb_w));
-	m_rs232b->dcd_handler().set("sio1", FUNC(z80dart_device::dcdb_w));
+	m_rs232b->rxd_handler().set("sio1", FUNC(z80sio_device::rxb_w));
+	m_rs232b->cts_handler().set("sio1", FUNC(z80sio_device::ctsb_w));
+	m_rs232b->dcd_handler().set("sio1", FUNC(z80sio_device::dcdb_w));
 
 	Z80PIO(config, m_pio, 8_MHz_XTAL / 2);
 	m_pio->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
