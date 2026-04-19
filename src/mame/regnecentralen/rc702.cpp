@@ -466,15 +466,18 @@ static DEVICE_INPUT_DEFAULTS_START( rs232a_defaults )
 	DEVICE_INPUT_DEFAULTS( "FLOW_CONTROL", 0x07, 0x01 )
 DEVICE_INPUT_DEFAULTS_END
 
-// Default RS232 settings for SIO Channel B (reader/punch port).
+// Default RS232 settings for SIO Channel B (console/debug port).
 // Must match the BIOS CONFI block (boot_confi.c): 38400 baud, 8-N-1.
+// RTS flow control (0x01): BIOS deasserts RTS-B when its RX ring is
+// near-full, so the null_modem pauses TX until the ring drains. Needed
+// for reliable 4 KB-plus transfers at full line rate.
 static DEVICE_INPUT_DEFAULTS_START( rs232b_defaults )
 	DEVICE_INPUT_DEFAULTS( "RS232_TXBAUD", 0xff, RS232_BAUD_38400 )
 	DEVICE_INPUT_DEFAULTS( "RS232_RXBAUD", 0xff, RS232_BAUD_38400 )
 	DEVICE_INPUT_DEFAULTS( "RS232_DATABITS", 0xff, RS232_DATABITS_8 )
 	DEVICE_INPUT_DEFAULTS( "RS232_PARITY", 0xff, RS232_PARITY_NONE )
 	DEVICE_INPUT_DEFAULTS( "RS232_STOPBITS", 0xff, RS232_STOPBITS_1 )
-	DEVICE_INPUT_DEFAULTS( "FLOW_CONTROL", 0x07, 0x00 )
+	DEVICE_INPUT_DEFAULTS( "FLOW_CONTROL", 0x07, 0x01 )
 DEVICE_INPUT_DEFAULTS_END
 
 static void rc702_floppies(device_slot_interface &device)
