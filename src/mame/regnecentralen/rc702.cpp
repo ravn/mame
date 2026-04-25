@@ -18,11 +18,14 @@ Machine variants:
 ToDo:
 - Hard drive for RC703, ports 0x60-0x67. Extra CTC on HD board, ports 0x44-0x47
 - Keyboard MCU (8048 + 2758) — currently using generic_keyboard
-- PIO port B is not yet used in the BIOS.
 
-Keyboard (PIO port A):
-- The real machine connects the keyboard to Z80 PIO port A.  The driver feeds key data via
-  the PIO's in_pa_callback(); the BIOS/CP/M reads the data register and is signalled by strobe.
+PIO peripherals (J3 / J4):
+- Both Z80 PIO ports are exposed as configurable slot devices via the
+  bus/rc702/pio_port/ infrastructure (see rc700-gensmedet docs/cpnet_fast_link.md).
+- Default config: PIO-A = "keyboard" card; PIO-B = empty (matches factory state —
+  J3 was an unpopulated expansion connector with no power rail, see RC702 Technical
+  Reference).  Note: PIO-B is *not* the printer port; the printer was always on a
+  SIO channel per the hardware reference and the standard CP/M IOBYTE mapping.
 - prom1 (line program ROM) is undumped; the region is filled with 0xff to avoid a missing-ROM
   warning.
 
@@ -30,6 +33,7 @@ Keyboard (PIO port A):
 
 #include "emu.h"
 
+#include "bus/rc702/pio_port/pio_port.h"
 #include "bus/rs232/rs232.h"
 #include "cpu/z80/z80.h"
 #include "imagedev/floppy.h"
@@ -37,7 +41,6 @@ Keyboard (PIO port A):
 #include "machine/7474.h"
 #include "machine/am9517a.h"
 #include "machine/clock.h"
-#include "machine/keyboard.h"
 #include "machine/upd765.h"
 #include "machine/z80ctc.h"
 #include "machine/z80pio.h"
@@ -78,6 +81,8 @@ public:
 		, m_floppy0(*this, "fdc:0")
 		, m_rs232a(*this, "rs232a")
 		, m_rs232b(*this, "rs232b")
+		, m_pio_a(*this, "pioa")
+		, m_pio_b(*this, "piob")
 	{ }
 
 	void rc702_base(machine_config &config);
@@ -104,9 +109,6 @@ private:
 	void dack1_w(int state);
 	I8275_DRAW_CHARACTER_MEMBER(display_pixels);
 	void rc702_palette(palette_device &palette) const;
-	void kbd_put(u8 data);
-	uint8_t kbd_r();
-	uint8_t m_kbd_data = 0U;
 
 	void io_map(address_map &map) ATTR_COLD;
 	void mem_map(address_map &map) ATTR_COLD;
@@ -136,6 +138,8 @@ private:
 	required_device<floppy_connector> m_floppy0;
 	required_device<rs232_port_device> m_rs232a;
 	required_device<rs232_port_device> m_rs232b;
+	required_device<rc702_pio_port_device> m_pio_a;
+	required_device<rc702_pio_port_device> m_pio_b;
 };
 
 
@@ -281,7 +285,6 @@ void rc702_state::machine_start()
 	save_item(NAME(m_beepcnt));
 	save_item(NAME(m_eop));
 	save_item(NAME(m_dack1));
-	save_item(NAME(m_kbd_data));
 }
 
 void rc702_state::q_w(int state)
@@ -441,18 +444,6 @@ static const z80_daisy_config daisy_chain_intf[] =
 	{ nullptr }
 };
 
-void rc702_state::kbd_put(u8 data)
-{
-	m_kbd_data = data;
-	m_pio->strobe_a(0);
-	m_pio->strobe_a(1);
-}
-
-uint8_t rc702_state::kbd_r()
-{
-	return m_kbd_data;
-}
-
 // Default RS232 settings for SIO Channel A (data/reader port).
 // Must match the BIOS CONFI block (boot_confi.c): 38400 baud, 8-N-1.
 // RTS flow control: BIOS deasserts RTS when ring buffer is nearly full,
@@ -534,8 +525,24 @@ void rc702_state::rc702_base(machine_config &config)
 
 	Z80PIO(config, m_pio, 8_MHz_XTAL / 2);
 	m_pio->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
-	m_pio->in_pa_callback().set(FUNC(rc702_state::kbd_r));
-//  m_pio->out_pb_callback().set(FUNC(rc702_state::portxx_w)); // parallel port
+	m_pio->in_pa_callback().set(m_pio_a, FUNC(rc702_pio_port_device::read));
+	m_pio->out_pa_callback().set(m_pio_a, FUNC(rc702_pio_port_device::write));
+	m_pio->out_ardy_callback().set(m_pio_a, FUNC(rc702_pio_port_device::rdy_w));
+	m_pio->in_pb_callback().set(m_pio_b, FUNC(rc702_pio_port_device::read));
+	m_pio->out_pb_callback().set(m_pio_b, FUNC(rc702_pio_port_device::write));
+	m_pio->out_brdy_callback().set(m_pio_b, FUNC(rc702_pio_port_device::rdy_w));
+
+	// PIO-A defaults to keyboard (matches real RC702); PIO-B starts empty
+	// (matches factory state of the J3 expansion connector).  The slot's
+	// out_strobe_handler wires back into the chip's strobe input so cards
+	// can pulse STB.  No clock arg — the 3-arg device constructor is the
+	// one that registers the card option list (mirrors the
+	// EINSTEIN_USERPORT pattern in src/mame/tatung/einstein.cpp).
+	RC702_PIO_PORT(config, m_pio_a);
+	m_pio_a->set_default_option("keyboard");
+	m_pio_a->out_strobe_handler().set(m_pio, FUNC(z80pio_device::strobe_a));
+	RC702_PIO_PORT(config, m_pio_b);
+	m_pio_b->out_strobe_handler().set(m_pio, FUNC(z80pio_device::strobe_b));
 
 	AM9517A(config, m_dma, 8_MHz_XTAL / 2);
 	m_dma->out_hreq_callback().set(FUNC(rc702_state::hreq_w));
@@ -544,10 +551,6 @@ void rc702_state::rc702_base(machine_config &config)
 	m_dma->out_memw_callback().set(FUNC(rc702_state::memory_write_byte));
 	m_dma->out_iow_callback<2>().set("crtc", FUNC(i8275_device::dack_w));
 	m_dma->out_iow_callback<3>().set("crtc", FUNC(i8275_device::dack_w));
-
-	/* Keyboard */
-	generic_keyboard_device &keyboard(GENERIC_KEYBOARD(config, "keyboard", 0));
-	keyboard.set_keyboard_callback(FUNC(rc702_state::kbd_put));
 
 	TTL7474(config, m_7474, 0);
 	m_7474->output_cb().set(FUNC(rc702_state::q_w));
