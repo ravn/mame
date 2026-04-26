@@ -61,6 +61,11 @@ private:
 	void listener_thread_main();
 	void close_client();
 
+	// emu-thread strobe scheduling — see cpnet_bridge.cpp comment
+	// "STB timing — Mode 1 input flow"
+	TIMER_CALLBACK_MEMBER(poll_tick);
+	emu_timer *m_poll_timer;
+
 	// configurable: TCP port the listener binds (default 4003)
 	static constexpr int default_port = 4003;
 	int m_port;
@@ -77,6 +82,11 @@ private:
 	std::mutex m_fifo_mtx;
 	std::deque<uint8_t> m_host_to_z80;  // drained by read()
 	std::deque<uint8_t> m_z80_to_host;  // filled by write()
+
+	// chip-side BRDY state.  Mode 1 input: BRDY high == chip ready to
+	// accept a new latch; we only pulse STB when (a) FIFO non-empty and
+	// (b) m_brdy_high.  Updated from rdy_w() on the emu thread.
+	bool m_brdy_high;
 };
 
 DECLARE_DEVICE_TYPE(RC702_PIO_CPNET_BRIDGE, rc702_pio_cpnet_bridge_device)
