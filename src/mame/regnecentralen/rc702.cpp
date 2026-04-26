@@ -18,20 +18,11 @@ Machine variants:
 ToDo:
 - Hard drive for RC703, ports 0x60-0x67. Extra CTC on HD board, ports 0x44-0x47
 - Keyboard MCU (8048 + 2758) — currently using generic_keyboard
+- PIO port B is not yet used in the BIOS.
 
-PIO peripherals (J3 / J4):
-- PIO-A (J4): keyboard, wired direct (generic_keyboard -> kbd_put -> in_pa_callback).
-  Originally a slot device too — reverted to direct wiring as a workaround for
-  ravn/mame#6 (two slot devices on a single Z80-PIO chip break IM2 IRQ delivery
-  in MAME's flat z80pio_device model).  Matches Einstein's proven topology
-  (Port A direct, Port B via slot).
-- PIO-B (J3): exposed as a configurable slot device via bus/rc702/pio_port/
-  (see rc700-gensmedet docs/cpnet_fast_link.md).  Default empty (matches factory
-  state — J3 was an unpopulated expansion connector with no power rail, see
-  RC702 Technical Reference).  `-piob cpnet_bridge` plugs in the CP/NET host
-  bridge for Option P fast-link work.
-- Note: PIO-B is *not* the printer port; the printer was always on a SIO
-  channel per the hardware reference and the standard CP/M IOBYTE mapping.
+Keyboard (PIO port A):
+- The real machine connects the keyboard to Z80 PIO port A.  The driver feeds key data via
+  the PIO's in_pa_callback(); the BIOS/CP/M reads the data register and is signalled by strobe.
 - prom1 (line program ROM) is undumped; the region is filled with 0xff to avoid a missing-ROM
   warning.
 
@@ -39,7 +30,6 @@ PIO peripherals (J3 / J4):
 
 #include "emu.h"
 
-#include "bus/rc702/pio_port/pio_port.h"
 #include "bus/rs232/rs232.h"
 #include "cpu/z80/z80.h"
 #include "imagedev/floppy.h"
@@ -88,7 +78,6 @@ public:
 		, m_floppy0(*this, "fdc:0")
 		, m_rs232a(*this, "rs232a")
 		, m_rs232b(*this, "rs232b")
-		, m_pio_b(*this, "piob")
 	{ }
 
 	void rc702_base(machine_config &config);
@@ -147,7 +136,6 @@ private:
 	required_device<floppy_connector> m_floppy0;
 	required_device<rs232_port_device> m_rs232a;
 	required_device<rs232_port_device> m_rs232b;
-	required_device<rc702_pio_port_device> m_pio_b;
 };
 
 
@@ -546,31 +534,8 @@ void rc702_state::rc702_base(machine_config &config)
 
 	Z80PIO(config, m_pio, 8_MHz_XTAL / 2);
 	m_pio->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
-	// PIO-A: keyboard wired direct (no slot wrapper) — Einstein topology.
-	// See ravn/mame#6 for why both halves of one Z80-PIO can't both be
-	// slot devices: MAME's z80pio_device is flat (no per-channel
-	// device_t subdevices), and the slot mechanism has only ever been
-	// validated against per-channel-subdevice chips like Z80-SIO.
 	m_pio->in_pa_callback().set(FUNC(rc702_state::kbd_r));
-	// PIO-B: configurable slot device.  Default empty (matches factory
-	// state of the J3 expansion connector).  `-piob cpnet_bridge`
-	// plugs in the CP/NET host bridge for Option P.
-	m_pio->in_pb_callback().set(m_pio_b, FUNC(rc702_pio_port_device::read));
-	m_pio->out_pb_callback().set(m_pio_b, FUNC(rc702_pio_port_device::write));
-	m_pio->out_brdy_callback().set(m_pio_b, FUNC(rc702_pio_port_device::rdy_w));
-
-	// PIO-B slot — out_strobe_handler wires back into the chip's strobe
-	// input so cards can pulse STB.  No clock arg — the 3-arg device
-	// constructor is the one that registers the card option list
-	// (mirrors the EINSTEIN_USERPORT pattern in src/mame/tatung/einstein.cpp).
-	RC702_PIO_PORT(config, m_pio_b);
-	m_pio_b->out_strobe_handler().set(m_pio, FUNC(z80pio_device::strobe_b));
-
-	// Direct keyboard wiring on PIO-A.  generic_keyboard pushes bytes
-	// into kbd_put which latches m_kbd_data and pulses strobe_a; the
-	// PIO's in_pa_callback returns m_kbd_data via kbd_r.
-	generic_keyboard_device &keyboard(GENERIC_KEYBOARD(config, "keyboard", 0));
-	keyboard.set_keyboard_callback(FUNC(rc702_state::kbd_put));
+//  m_pio->out_pb_callback().set(FUNC(rc702_state::portxx_w)); // parallel port
 
 	AM9517A(config, m_dma, 8_MHz_XTAL / 2);
 	m_dma->out_hreq_callback().set(FUNC(rc702_state::hreq_w));
@@ -579,6 +544,10 @@ void rc702_state::rc702_base(machine_config &config)
 	m_dma->out_memw_callback().set(FUNC(rc702_state::memory_write_byte));
 	m_dma->out_iow_callback<2>().set("crtc", FUNC(i8275_device::dack_w));
 	m_dma->out_iow_callback<3>().set("crtc", FUNC(i8275_device::dack_w));
+
+	/* Keyboard */
+	generic_keyboard_device &keyboard(GENERIC_KEYBOARD(config, "keyboard", 0));
+	keyboard.set_keyboard_callback(FUNC(rc702_state::kbd_put));
 
 	TTL7474(config, m_7474, 0);
 	m_7474->output_cb().set(FUNC(rc702_state::q_w));
