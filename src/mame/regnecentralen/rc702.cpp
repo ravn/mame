@@ -650,7 +650,11 @@ ROM_START( rc702 )
 	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800,  CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(2))
 
 	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF ) // 2716 (2KB) or 2732 (4KB), jumper-selectable
-	ROM_FILL( 0x0000, 0x1000, 0xff ) // line program ROM (ROB388 on MIC705) - undumped prom1.ic65
+	// line program ROM (ROB388 on MIC705) - undumped prom1.ic65.
+	// Optional load: drop a prom1.ic65 file into the rc702 rom path to
+	// use a user-supplied image (e.g., CP/NOS resident helpers).  When
+	// the file is absent, ROMREGION_ERASEFF keeps the original 0xFF fill.
+	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x0800, NO_DUMP )
 
 	ROM_REGION( 0x1000, "chargen", 0 )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) ) // char
