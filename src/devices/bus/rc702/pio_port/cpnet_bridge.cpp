@@ -55,7 +55,8 @@ rc702_pio_cpnet_bridge_device::rc702_pio_cpnet_bridge_device(const machine_confi
 	m_port(default_port),
 	m_listen_fd(-1),
 	m_client_fd(-1),
-	m_shutdown(false)
+	m_shutdown(false),
+	m_brdy_high(true)  // PIO defaults BRDY high after reset
 {
 }
 
@@ -97,6 +98,16 @@ void rc702_pio_cpnet_bridge_device::device_start()
 	m_listener_thread = std::thread(&rc702_pio_cpnet_bridge_device::listener_thread_main, this);
 	logerror("cpnet_bridge: listening on 127.0.0.1:%d\n", m_port);
 #endif
+
+	// Polling timer on the emu thread.  Periodically checks the
+	// host->Z80 FIFO and pulses STB if the chip is ready.  Polling
+	// rather than cross-thread signalling because synchronize() does
+	// not appear to dispatch reliably from a non-emu thread for our
+	// device init order.  1 ms cadence: well below CP/NET frame
+	// latency (~10ms+), well above per-byte latch turnaround (~40 µs
+	// at 4 MHz Z80).
+	m_poll_timer = timer_alloc(FUNC(rc702_pio_cpnet_bridge_device::poll_tick), this);
+	m_poll_timer->adjust(attotime::from_msec(1), 0, attotime::from_msec(1));
 }
 
 void rc702_pio_cpnet_bridge_device::device_stop()
@@ -127,22 +138,32 @@ void rc702_pio_cpnet_bridge_device::close_client()
 
 //**************************************************************************
 //  CHIP-SIDE CALLBACKS (run on emulation thread)
+//
+//  STB timing — Mode 1 input flow:
+//
+//    1. Bridge places data on PB lines (= return value from read()).
+//    2. Bridge pulses STB low-then-high.
+//    3. PIO latches data on STB rising edge, asserts INT, drops BRDY.
+//    4. Z80 ISR runs, IN A,(0x11) returns the latched byte, INT clears.
+//    5. PIO raises BRDY -> rdy_w(1) here -> we strobe the next byte.
+//
+//  Earlier code pulsed STB inside read() — i.e. AFTER the chip had
+//  already pulled data — which is backwards: the rising edge that
+//  drives latching never fired, so the chip never asserted INT and
+//  the Z80 ISR never ran.  Bytes piled up in m_host_to_z80 forever.
+//
+//  schedule_strobe() is the cross-thread entry point: callable from
+//  listener_thread_main(); marshals to the emu thread via
+//  machine().scheduler().synchronize().
 //**************************************************************************
 
 uint8_t rc702_pio_cpnet_bridge_device::read()
 {
-	uint8_t data = 0xff;
-	{
-		std::lock_guard<std::mutex> lk(m_fifo_mtx);
-		if (!m_host_to_z80.empty())
-		{
-			data = m_host_to_z80.front();
-			m_host_to_z80.pop_front();
-		}
-	}
-	// Pulse STB so chip latches the data (Mode 1 input semantic).
-	m_slot->strobe_w(0);
-	m_slot->strobe_w(1);
+	std::lock_guard<std::mutex> lk(m_fifo_mtx);
+	if (m_host_to_z80.empty())
+		return 0xff;
+	uint8_t data = m_host_to_z80.front();
+	m_host_to_z80.pop_front();
 	return data;
 }
 
@@ -153,14 +174,47 @@ void rc702_pio_cpnet_bridge_device::write(uint8_t data)
 		m_z80_to_host.push_back(data);
 	}
 	// Pulse STB so chip releases BRDY (Mode 0 output ack semantic).
+	// Output direction is symmetric — chip wrote, we ack to release.
 	m_slot->strobe_w(0);
 	m_slot->strobe_w(1);
 }
 
-void rc702_pio_cpnet_bridge_device::rdy_w(int /*state*/)
+void rc702_pio_cpnet_bridge_device::rdy_w(int state)
 {
-	// BRDY edges from the chip — currently unused here.  Could be used
-	// later as flow control: stall the listener thread when chip busy.
+	// Track BRDY so try_strobe_synced knows when the chip is ready
+	// to accept the next latch.  When BRDY rises with bytes pending,
+	// strobe immediately.
+	bool was_high = m_brdy_high;
+	m_brdy_high = (state != 0);
+	logerror("cpnet_bridge: rdy_w(%d) was_high=%d\n", state, was_high);
+	if (m_brdy_high && !was_high)
+	{
+		bool have;
+		{
+			std::lock_guard<std::mutex> lk(m_fifo_mtx);
+			have = !m_host_to_z80.empty();
+		}
+		if (have)
+		{
+			logerror("cpnet_bridge: rdy_w rising edge with data, strobing\n");
+			m_slot->strobe_w(0);
+			m_slot->strobe_w(1);
+		}
+	}
+}
+
+TIMER_CALLBACK_MEMBER(rc702_pio_cpnet_bridge_device::poll_tick)
+{
+	bool have;
+	{
+		std::lock_guard<std::mutex> lk(m_fifo_mtx);
+		have = !m_host_to_z80.empty();
+	}
+	if (have && m_brdy_high)
+	{
+		m_slot->strobe_w(0);
+		m_slot->strobe_w(1);
+	}
 }
 
 
@@ -225,9 +279,24 @@ void rc702_pio_cpnet_bridge_device::listener_thread_main()
 				ssize_t r = ::read(cfd, buf, sizeof(buf));
 				if (r <= 0)
 					break;  // disconnect or error
-				std::lock_guard<std::mutex> lk(m_fifo_mtx);
-				for (ssize_t i = 0; i < r; ++i)
-					m_host_to_z80.push_back(buf[i]);
+
+				bool was_empty;
+				{
+					std::lock_guard<std::mutex> lk(m_fifo_mtx);
+					was_empty = m_host_to_z80.empty();
+					for (ssize_t i = 0; i < r; ++i)
+						m_host_to_z80.push_back(buf[i]);
+				}
+				// Wake the emu thread so it can latch the first byte
+				// via STB.  Subsequent bytes get strobed from rdy_w()
+				// as the chip raises BRDY between latches.  Only
+				// schedule on the empty->non-empty transition so we
+				// don't spam the scheduler mid-burst.
+				logerror("cpnet_bridge: listener got %zd bytes was_empty=%d\n",
+						r, was_empty);
+				// poll_tick on the emu thread will pick the new bytes
+				// up on its next 1 ms tick — no cross-thread signalling
+				// from here.
 			}
 
 			if (have_outbound && FD_ISSET(cfd, &wfds))
