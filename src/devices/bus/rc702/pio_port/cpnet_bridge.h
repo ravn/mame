@@ -6,20 +6,27 @@
 
     Implements the host side of the CP/NET fast-link transport (see
     rc700-gensmedet/docs/cpnet_fast_link.md, "Option P").  Plug into
-    PIO-B (J3 in real hardware) via the slot system:
+    PIO-B (J3 in real hardware) via the slot system, with the
+    underlying byte stream wired to a bitbanger image device:
 
-        mame rc702 -piob cpnet_bridge
+        mame rc702 -piob cpnet_bridge -bitb<N> socket.127.0.0.1:4003
 
-    The card exposes a TCP listener (default localhost:4003) and forwards
-    bytes between the socket and the Z80 PIO.  Direction tracking is
-    purely protocol-driven on the socket side (CP/NET SCB length fields);
-    on the chip side, the Z80-PIO's own mode routing decides whether
-    `read()` (chip pulls a byte from the bridge in Mode 1) or `write()`
-    (chip pushes a byte to the bridge in Mode 0) gets called.  The bridge
-    maintains two unidirectional FIFOs to match.
+    Direction tracking is purely protocol-driven on the host side
+    (CP/NET SCB length fields).  On the chip side, the Z80-PIO's own
+    mode routing decides whether `read()` (chip pulls a byte from the
+    bridge in Mode 1) or `write()` (chip pushes a byte to the bridge
+    in Mode 0) gets called.  The bridge buffers host->Z80 bytes in a
+    fixed-size scratch array (refilled from the bitbanger on the emu
+    thread's poll timer) and forwards Z80->host bytes directly.
 
-    No chip-mode tracking, no port-0x13 sniff — see the design doc for
-    why mirroring real hardware behaviour is enough.
+    Modeled after src/devices/bus/rs232/null_modem.cpp — same
+    bitbanger-as-stream pattern, same emu-thread polled I/O.  Earlier
+    revisions of this file used a private listener thread + raw POSIX
+    sockets with a 50 ms select timeout, which dragged CP/NOS netboot
+    over PIO from ~50 ms (real HW) to ~3.7 s emulated.  Switching to
+    bitbanger inherits MAME's standard non-blocking-poll OSD socket
+    layer (posix_osd_socket with zero-timeout select); per-frame
+    latency drops by ~50x.
 
 ***************************************************************************/
 
@@ -30,10 +37,7 @@
 
 #include "pio_port.h"
 
-#include <atomic>
-#include <deque>
-#include <mutex>
-#include <thread>
+#include "imagedev/bitbngr.h"
 
 
 //**************************************************************************
@@ -54,38 +58,28 @@ public:
 
 protected:
 	virtual void device_start() override ATTR_COLD;
-	virtual void device_stop() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
 private:
-	// listener thread
-	void listener_thread_main();
-	void close_client();
-
-	// emu-thread strobe scheduling — see cpnet_bridge.cpp comment
-	// "STB timing — Mode 1 input flow"
 	TIMER_CALLBACK_MEMBER(poll_tick);
+
+	required_device<bitbanger_device> m_stream;
 	emu_timer *m_poll_timer;
 
-	// configurable: TCP port the listener binds (default 4003)
-	static constexpr int default_port = 4003;
-	int m_port;
+	// Input scratch (host -> Z80).  Refilled on poll_tick from the
+	// bitbanger's non-blocking read; drained one byte per chip
+	// `read()` callback.  Modeled on null_modem_device's m_input_*
+	// pair.  Size chosen so a worst-case 256-byte CP/NET frame fits
+	// in two refills.
+	static constexpr unsigned INPUT_BUF_SIZE = 256;
+	uint8_t  m_input_buffer[INPUT_BUF_SIZE];
+	uint32_t m_input_count;     // bytes valid in m_input_buffer
+	uint32_t m_input_index;     // next byte to hand to chip
 
-	// listener / client sockets (POSIX fd, -1 = invalid)
-	std::atomic<int> m_listen_fd;
-	std::atomic<int> m_client_fd;
-
-	// listener thread
-	std::thread m_listener_thread;
-	std::atomic<bool> m_shutdown;
-
-	// FIFOs between socket I/O and chip-side callbacks
-	std::mutex m_fifo_mtx;
-	std::deque<uint8_t> m_host_to_z80;  // drained by read()
-	std::deque<uint8_t> m_z80_to_host;  // filled by write()
-
-	// chip-side BRDY state.  Mode 1 input: BRDY high == chip ready to
-	// accept a new latch; we only pulse STB when (a) FIFO non-empty and
-	// (b) m_brdy_high.  Updated from rdy_w() on the emu thread.
+	// Chip-side BRDY state.  Mode 1 input: BRDY high == chip ready to
+	// accept a new latch; we only pulse STB when (a) buffer has bytes
+	// to feed and (b) m_brdy_high.  Updated from rdy_w() on the emu
+	// thread.
 	bool m_brdy_high;
 };
 
