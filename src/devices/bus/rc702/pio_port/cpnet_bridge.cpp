@@ -115,10 +115,18 @@ void rc702_pio_cpnet_bridge_device::rdy_w(int state)
 	bool const was_high = m_brdy_high;
 	m_brdy_high = (state != 0);
 
-	// Rising edge with bytes pending in the input buffer: strobe
-	// immediately so the chip latches the next byte and the Z80 ISR
-	// (or busy-poll) sees it on the next IN.
-	if (m_brdy_high && !was_high && m_input_index < m_input_count)
+	// Rising edge: always strobe (don't gate on buffer non-empty).
+	// When buffer is empty, read() returns 0xff and the chip latches
+	// 0xff into m_input — Z80's busy-poll loop treats 0xff as "no
+	// byte yet" and keeps looking.  If we DON'T strobe on empty,
+	// m_input keeps the previous real byte, and Z80's next IN
+	// returns the same byte again, producing silent duplicate reads
+	// in snios's NETIN/MSGIN — which is exactly the OPEN-response
+	// failure mode in the snios-on-PIO experiment (LOGIN works
+	// because its 1-byte payload has no chance for duplicates;
+	// OPEN's 37-byte payload runs out of bridge buffer mid-MSGIN
+	// and the trailing INs all return the same stale byte).
+	if (m_brdy_high && !was_high)
 	{
 		m_slot->strobe_w(0);
 		m_slot->strobe_w(1);
