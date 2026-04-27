@@ -263,7 +263,14 @@ void rc702_pio_cpnet_bridge_device::listener_thread_main()
 
 			struct timeval tv {};
 			tv.tv_sec = 0;
-			tv.tv_usec = 50 * 1000;  // 50ms poll
+			tv.tv_usec = 1 * 1000;   // 1ms poll — was 50ms; the
+			                         // chip-side write() doesn't wake
+			                         // the listener thread, so this
+			                         // timeout bounds Z80->host TCP
+			                         // flush latency.  CP/NET frames
+			                         // are 43/171 bytes (sub-MSS) so
+			                         // every round-trip incurred two
+			                         // 50ms waits => netboot dragged.
 
 			int n = ::select(cfd + 1, &rfds, &wfds, nullptr, &tv);
 			if (n < 0)
