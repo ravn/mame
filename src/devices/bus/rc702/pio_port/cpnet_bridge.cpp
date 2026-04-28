@@ -115,18 +115,21 @@ void rc702_pio_cpnet_bridge_device::rdy_w(int state)
 	bool const was_high = m_brdy_high;
 	m_brdy_high = (state != 0);
 
-	// Rising edge: always strobe (don't gate on buffer non-empty).
-	// When buffer is empty, read() returns 0xff and the chip latches
-	// 0xff into m_input — Z80's busy-poll loop treats 0xff as "no
-	// byte yet" and keeps looking.  If we DON'T strobe on empty,
-	// m_input keeps the previous real byte, and Z80's next IN
-	// returns the same byte again, producing silent duplicate reads
-	// in snios's NETIN/MSGIN — which is exactly the OPEN-response
-	// failure mode in the snios-on-PIO experiment (LOGIN works
-	// because its 1-byte payload has no chance for duplicates;
-	// OPEN's 37-byte payload runs out of bridge buffer mid-MSGIN
-	// and the trailing INs all return the same stale byte).
-	if (m_brdy_high && !was_high)
+	// Rising edge: strobe only when there's a real byte to deliver.
+	// On real Pi/Pico hardware this corresponds to "only pulse STB
+	// when the TCP queue has something."  Empty buffer + no strobe
+	// = no chip interrupt = Z80 ISR doesn't fire = snios's recv
+	// queue stays empty and the recv loop times out cleanly.
+	//
+	// Earlier "always strobe" variant generated empty-strobes that
+	// latched 0xff into the chip's m_input as a "no byte" sentinel,
+	// which conflated a real 0xff data byte from mpm-net2 with
+	// "buffer empty" in the polled snios path — see
+	// rc700-gensmedet/tasks/session34-direct-pio-stall-rootcause.md.
+	// The IRQ-driven snios path on the rc700-gensmedet
+	// pio-mpm-irq-fix branch removes the polling and so this gate
+	// is the right one again.
+	if (m_brdy_high && !was_high && m_input_index < m_input_count)
 	{
 		m_slot->strobe_w(0);
 		m_slot->strobe_w(1);
@@ -144,10 +147,18 @@ TIMER_CALLBACK_MEMBER(rc702_pio_cpnet_bridge_device::poll_tick)
 		m_input_index = 0;
 	}
 
-	// If we have bytes ready and the chip is ready to accept (BRDY
-	// high), strobe to start the next latch.  read() will hand the
-	// byte to the chip on the corresponding IN.
-	if (m_input_index < m_input_count && m_brdy_high)
+	// Strobe whenever there's a real byte to deliver.  The
+	// m_brdy_high gate isn't reliable: MAME's z80pio.cpp does not
+	// auto-raise BRDY when the chip enters MODE_INPUT (real chip
+	// does, per Zilog datasheet), so m_rdy can be stuck false
+	// after a previous mode-flip even though the chip is happy to
+	// accept a strobe.  In MODE_INPUT, chip strobe handler is
+	// ungated and processes correctly.  In MODE_OUTPUT (the
+	// transient SEND phase), strobe(0) is a no-op and strobe(1) is
+	// gated on m_rdy inside the chip — strobing here is harmless.
+	// IE is held off during OUTPUT by transport_pio.c so no IRQ
+	// fires during a SEND even if the chip's m_ip flag gets set.
+	if (m_input_index < m_input_count)
 	{
 		m_slot->strobe_w(0);
 		m_slot->strobe_w(1);
