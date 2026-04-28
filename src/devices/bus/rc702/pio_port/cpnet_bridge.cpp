@@ -147,18 +147,19 @@ TIMER_CALLBACK_MEMBER(rc702_pio_cpnet_bridge_device::poll_tick)
 		m_input_index = 0;
 	}
 
-	// Strobe whenever there's a real byte to deliver.  The
-	// m_brdy_high gate isn't reliable: MAME's z80pio.cpp does not
-	// auto-raise BRDY when the chip enters MODE_INPUT (real chip
-	// does, per Zilog datasheet), so m_rdy can be stuck false
-	// after a previous mode-flip even though the chip is happy to
-	// accept a strobe.  In MODE_INPUT, chip strobe handler is
-	// ungated and processes correctly.  In MODE_OUTPUT (the
-	// transient SEND phase), strobe(0) is a no-op and strobe(1) is
-	// gated on m_rdy inside the chip — strobing here is harmless.
-	// IE is held off during OUTPUT by transport_pio.c so no IRQ
-	// fires during a SEND even if the chip's m_ip flag gets set.
-	if (m_input_index < m_input_count)
+	// Gate strobing on chip BRDY high AND buffer non-empty: BRDY
+	// low means the chip already has an unread byte latched in
+	// m_input; if we strobed again, m_input would be overwritten
+	// before the Z80 ISR reads it (silent byte loss on the IRQ
+	// path).  The chip raises BRDY via data_read after each Z80 IN,
+	// so this gate naturally rate-limits us to one strobe per
+	// consumed byte.  m_brdy_high starts true (matching the
+	// bridge's optimistic assumption); the first SEND-flip-RECV
+	// cycle exercises the chip's set_rdy callbacks and brings the
+	// two views into sync.  See ravn/mame#8 (MAME doesn't auto-raise
+	// BRDY on Mode-1 entry per Zilog datasheet) for the boot-time
+	// bootstrap analysis.
+	if (m_input_index < m_input_count && m_brdy_high)
 	{
 		m_slot->strobe_w(0);
 		m_slot->strobe_w(1);
