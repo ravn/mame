@@ -115,18 +115,21 @@ void rc702_pio_cpnet_bridge_device::rdy_w(int state)
 	bool const was_high = m_brdy_high;
 	m_brdy_high = (state != 0);
 
-	// Rising edge: always strobe (don't gate on buffer non-empty).
-	// When buffer is empty, read() returns 0xff and the chip latches
-	// 0xff into m_input — Z80's busy-poll loop treats 0xff as "no
-	// byte yet" and keeps looking.  If we DON'T strobe on empty,
-	// m_input keeps the previous real byte, and Z80's next IN
-	// returns the same byte again, producing silent duplicate reads
-	// in snios's NETIN/MSGIN — which is exactly the OPEN-response
-	// failure mode in the snios-on-PIO experiment (LOGIN works
-	// because its 1-byte payload has no chance for duplicates;
-	// OPEN's 37-byte payload runs out of bridge buffer mid-MSGIN
-	// and the trailing INs all return the same stale byte).
-	if (m_brdy_high && !was_high)
+	// Rising edge: strobe only when there's a real byte to deliver.
+	// On real Pi/Pico hardware this corresponds to "only pulse STB
+	// when the TCP queue has something."  Empty buffer + no strobe
+	// = no chip interrupt = Z80 ISR doesn't fire = snios's recv
+	// queue stays empty and the recv loop times out cleanly.
+	//
+	// Earlier "always strobe" variant generated empty-strobes that
+	// latched 0xff into the chip's m_input as a "no byte" sentinel,
+	// which conflated a real 0xff data byte from mpm-net2 with
+	// "buffer empty" in the polled snios path — see
+	// rc700-gensmedet/tasks/session34-direct-pio-stall-rootcause.md.
+	// The IRQ-driven snios path on the rc700-gensmedet
+	// pio-mpm-irq-fix branch removes the polling and so this gate
+	// is the right one again.
+	if (m_brdy_high && !was_high && m_input_index < m_input_count)
 	{
 		m_slot->strobe_w(0);
 		m_slot->strobe_w(1);
@@ -144,9 +147,18 @@ TIMER_CALLBACK_MEMBER(rc702_pio_cpnet_bridge_device::poll_tick)
 		m_input_index = 0;
 	}
 
-	// If we have bytes ready and the chip is ready to accept (BRDY
-	// high), strobe to start the next latch.  read() will hand the
-	// byte to the chip on the corresponding IN.
+	// Gate strobing on chip BRDY high AND buffer non-empty: BRDY
+	// low means the chip already has an unread byte latched in
+	// m_input; if we strobed again, m_input would be overwritten
+	// before the Z80 ISR reads it (silent byte loss on the IRQ
+	// path).  The chip raises BRDY via data_read after each Z80 IN,
+	// so this gate naturally rate-limits us to one strobe per
+	// consumed byte.  m_brdy_high starts true (matching the
+	// bridge's optimistic assumption); the first SEND-flip-RECV
+	// cycle exercises the chip's set_rdy callbacks and brings the
+	// two views into sync.  See ravn/mame#8 (MAME doesn't auto-raise
+	// BRDY on Mode-1 entry per Zilog datasheet) for the boot-time
+	// bootstrap analysis.
 	if (m_input_index < m_input_count && m_brdy_high)
 	{
 		m_slot->strobe_w(0);
