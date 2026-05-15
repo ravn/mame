@@ -188,14 +188,21 @@ static INPUT_PORTS_START( rc702_promcfg )
 	PORT_CONFSETTING(    0x02, "2732 (4KB)")
 INPUT_PORTS_END
 
-/* Input ports - PROM reads port 0x14 bit 7: set=mini, clear=maxi */
+/* Input ports - PROM reads port 0x14 bit 7: set=mini, clear=maxi.
+ * Reconstructed-firmware uses for the SW1 bits (see autoload-in-c,
+ * rcbios-in-c, cpnos-in-asm in the rc700-gensmedet workspace):
+ *   bit 0 (S01): SIO-B console mode (rcbios IOBYTE_CON_JOINED gate).
+ *   bit 1 (S02): PROM1 selector — 0 = chargen ROM (ROA327), load
+ *                font into SEM702; 1 = lineprog PROM (cpnos-in-asm
+ *                slave), skip the font load.
+ *   bit 7 (S08): mini/maxi floppy (original-RC702 hardware bit). */
 static INPUT_PORTS_START( rc702_maxi )
 	PORT_INCLUDE( rc702_promcfg )
 	PORT_START("DSW")
-	PORT_DIPNAME( 0x01, 0x00, "S01")
+	PORT_DIPNAME( 0x01, 0x00, "S01 SIO-B console (rcbios)")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x02, 0x00, "S02")
+	PORT_DIPNAME( 0x02, 0x00, "S02 PROM1=lineprog (skip chargen)")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
 	PORT_DIPNAME( 0x04, 0x00, "S03")
@@ -218,13 +225,14 @@ static INPUT_PORTS_START( rc702_maxi )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ))
 INPUT_PORTS_END
 
+/* See rc702_maxi comment for the SW1 bit assignments. */
 static INPUT_PORTS_START( rc702_mini )
 	PORT_INCLUDE( rc702_promcfg )
 	PORT_START("DSW")
-	PORT_DIPNAME( 0x01, 0x00, "S01")
+	PORT_DIPNAME( 0x01, 0x00, "S01 SIO-B console (rcbios)")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x02, 0x00, "S02")
+	PORT_DIPNAME( 0x02, 0x00, "S02 PROM1=lineprog (skip chargen)")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
 	PORT_DIPNAME( 0x04, 0x00, "S03")
