@@ -96,6 +96,7 @@ public:
 	void rc702mini(machine_config &config);
 	void rc703(machine_config &config);
 	void rc703maxi(machine_config &config);
+	void rc702sem702(machine_config &config);
 
 protected:
 	virtual void machine_start() override ATTR_COLD;
@@ -106,6 +107,9 @@ private:
 	void memory_write_byte(offs_t offset, uint8_t data);
 	void port14_w(uint8_t data);
 	void port1c_w(uint8_t data);
+	void sem702_char_w(uint8_t data);
+	void sem702_dot_w(uint8_t data);
+	void sem702_data_w(uint8_t data);
 	void crtc_drq_w(int state);
 	void hreq_w(int state);
 	void clock_w(int state);
@@ -128,6 +132,14 @@ private:
 	uint16_t m_beepcnt = 0U;
 	bool m_eop = false;
 	bool m_dack1 = false;
+	// SEM702 RAM-based character generator (IC82 swap-in for ROA327).
+	// 128 chars * 16 lines = 2 KB.  Uninitialised at power-on on real
+	// hardware; we fill with 0xFF so an un-programmed boot is visually
+	// obvious (all-dots glyphs).  Programmed via OUT ports 0xD1/0xD2/0xD3.
+	uint8_t m_sem702_ram[0x800] = {};
+	uint8_t m_sem702_char_latch = 0U;
+	uint8_t m_sem702_dot_latch = 0U;
+	bool m_has_sem702 = false;
 	required_device<palette_device> m_palette;
 	required_device<z80_device> m_maincpu;
 	required_region_ptr<u8> m_rom;
@@ -172,6 +184,13 @@ void rc702_state::io_map(address_map &map)
 	map(0x14, 0x17).portr("DSW").w(FUNC(rc702_state::port14_w)); // motors
 	map(0x18, 0x1b).lw8(NAME([this] (u8 data) { m_bank1->set_entry(0); m_bank1h->set_entry(0); m_bank2->set_entry(0); m_bank2h->set_entry(0); })); // replace roms with ram
 	map(0x1c, 0x1f).w(FUNC(rc702_state::port1c_w)); // sound
+	// SEM702 RAM-based character generator (IC82).  Handlers are wired
+	// on every rc702 variant but only act when m_has_sem702 is set --
+	// matching real hardware where these ports go nowhere on machines
+	// with the original ROA327 fixed-font ROM installed.
+	map(0xd1, 0xd1).w(FUNC(rc702_state::sem702_char_w));
+	map(0xd2, 0xd2).w(FUNC(rc702_state::sem702_dot_w));
+	map(0xd3, 0xd3).w(FUNC(rc702_state::sem702_data_w));
 	map(0xf0, 0xff).rw(m_dma, FUNC(am9517a_device::read), FUNC(am9517a_device::write));
 }
 
@@ -302,6 +321,19 @@ void rc702_state::machine_start()
 	save_item(NAME(m_eop));
 	save_item(NAME(m_dack1));
 	save_item(NAME(m_kbd_data));
+
+	if (m_has_sem702)
+	{
+		// Power-on SEM702 RAM is undefined.  Initialise to 0xFF so an
+		// un-programmed boot shows solid blocks (loudly "no font loaded")
+		// rather than blank screen that could be mistaken for a working
+		// display.  Software is expected to overwrite this before
+		// enabling the CRT.
+		std::memset(m_sem702_ram, 0xff, sizeof(m_sem702_ram));
+		save_item(NAME(m_sem702_ram));
+		save_item(NAME(m_sem702_char_latch));
+		save_item(NAME(m_sem702_dot_latch));
+	}
 }
 
 void rc702_state::q_w(int state)
@@ -386,6 +418,39 @@ void rc702_state::port1c_w(uint8_t data)
 	m_beepcnt = 0x3000;
 }
 
+// SEM702 character generator: writes are accepted only when the variant
+// flagged m_has_sem702.  This matches real hardware where ports
+// 0xD1/0xD2/0xD3 land on a SEM702 RAM board fitted in IC82, and go
+// nowhere on machines that still have the ROA327 font ROM there.
+//
+// Modelled as three pure latches with no side effects: 0xD1 latches the
+// 7-bit character address (ACHAR), 0xD2 the 4-bit line address (ALINE),
+// 0xD3 writes RAM[(ACHAR << 4) | ALINE].  Real SEM702 hardware behaviour
+// is not yet observed; both software sources we have (autoload's
+// define_sextants and the Comal80 example in docs/RC702tech.txt) set
+// ALINE explicitly before every byte, so we have no evidence of any
+// auto-increment.  Keeping MAME's model strict avoids letting future
+// software accidentally rely on side effects that may not exist on the
+// physical board.
+void rc702_state::sem702_char_w(uint8_t data)
+{
+	if (!m_has_sem702) return;
+	m_sem702_char_latch = data & 0x7f;
+}
+
+void rc702_state::sem702_dot_w(uint8_t data)
+{
+	if (!m_has_sem702) return;
+	m_sem702_dot_latch = data & 0x0f;
+}
+
+void rc702_state::sem702_data_w(uint8_t data)
+{
+	if (!m_has_sem702) return;
+	uint16_t addr = (uint16_t(m_sem702_char_latch) << 4) | m_sem702_dot_latch;
+	m_sem702_ram[addr & 0x7ff] = data;
+}
+
 // monitor is orange even when powered off
 void rc702_state::rc702_palette(palette_device &palette) const
 {
@@ -402,11 +467,21 @@ I8275_DRAW_CHARACTER_MEMBER( rc702_state::display_pixels )
 
 	if (!BIT(attrcode, VSP))
 	{
-		// GPA0 from field attribute selects ROA327 (semigraphics) vs ROA296 (main chargen)
+		// GPA0 from field attribute selects ROA327 (semigraphics) vs ROA296 (main chargen).
+		// On the SEM702 variant, the ROA327 half of the chargen address
+		// space is backed by RAM that the host programs via 0xD1/0xD2/0xD3.
 		uint16_t offset = (linecount & 15) | (charcode << 4);
 		if (BIT(attrcode, GPA0))
-			offset |= 0x800;
-		gfx = m_p_chargen[offset];
+		{
+			if (m_has_sem702)
+				gfx = m_sem702_ram[offset & 0x7ff];
+			else
+				gfx = m_p_chargen[offset | 0x800];
+		}
+		else
+		{
+			gfx = m_p_chargen[offset];
+		}
 	}
 
 	if (BIT(attrcode, LTEN))
@@ -677,6 +752,18 @@ void rc702_state::rc703maxi(machine_config &config)
 	// TODO: Hard disk ports 0x60-0x67, CTC2 ports 0x44-0x47
 }
 
+// RC702 8" variant with SEM702 RAM-based chargen board fitted in IC82.
+// Identical to rc702 (same FDC, floppies, etc.) except the upper 2 KB of
+// the "chargen" region is RAM that the CPU programmes via ports
+// 0xD1/0xD2/0xD3.  Selected at boot by display_pixels() reading from
+// m_sem702_ram when GPA0 is set; m_has_sem702 distinguishes the variant
+// at run time.
+void rc702_state::rc702sem702(machine_config &config)
+{
+	rc702(config);
+	m_has_sem702 = true;
+}
+
 
 /* ROM definition */
 ROM_START( rc702 )
@@ -718,6 +805,25 @@ ROM_START( rc703maxi )
 	ROM_LOAD( "roa327.rom", 0x0800, 0x0800, CRC(bed7ddb0) SHA1(201ae9e4ac3812577244b9c9044fadd04fb2b82f) )
 ROM_END
 
+/* RC702 8" with SEM702 RAM-based chargen in IC82.  ROA296 still occupies
+ * the lower half of the chargen region; the upper half (where ROA327
+ * lives on stock hardware) is replaced at run time by m_sem702_ram and
+ * the static ROM contents here are never read on this variant. */
+ROM_START( rc702sem702 )
+	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF )
+	ROM_SYSTEM_BIOS(0, "rc702", "RC702")
+	ROMX_LOAD( "roa375.ic66", 0x0000, 0x1000, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084), ROM_BIOS(0))
+
+	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF )
+	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x0800, NO_DUMP )
+
+	ROM_REGION( 0x1000, "chargen", ROMREGION_ERASEFF )
+	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) )
+	// IC82 = SEM702 RAM board, not a ROA327 ROM.  Upper half of "chargen"
+	// stays as 0xFF (unused) -- display_pixels reads m_sem702_ram for
+	// GPA0=1 character codes on this variant.
+ROM_END
+
 } // anonymous namespace
 
 
@@ -726,8 +832,9 @@ ROM_END
 #define rom_rc702mini  rom_rc702
 #define rom_rc703      rom_rc702
 
-//    YEAR  NAME       PARENT  COMPAT  MACHINE    INPUT        CLASS        INIT        COMPANY           FULLNAME                     FLAGS
-COMP( 1979, rc702,     0,      0,      rc702,     rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo (8\")",        MACHINE_SUPPORTS_SAVE )
-COMP( 1979, rc702mini, rc702,  0,      rc702mini, rc702_mini,  rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo (5.25\")",     MACHINE_SUPPORTS_SAVE )
-COMP( 1982, rc703,     rc702,  0,      rc703,     rc702_mini,  rc702_state, empty_init, "Regnecentralen", "RC703 Piccolo (5.25\")",     MACHINE_SUPPORTS_SAVE )
-COMP( 1982, rc703maxi, rc702,  0,      rc703maxi, rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC703 Piccolo (8\")",        MACHINE_SUPPORTS_SAVE )
+//    YEAR  NAME         PARENT  COMPAT  MACHINE      INPUT        CLASS        INIT        COMPANY           FULLNAME                          FLAGS
+COMP( 1979, rc702,       0,      0,      rc702,       rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo (8\")",             MACHINE_SUPPORTS_SAVE )
+COMP( 1979, rc702mini,   rc702,  0,      rc702mini,   rc702_mini,  rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo (5.25\")",          MACHINE_SUPPORTS_SAVE )
+COMP( 1982, rc703,       rc702,  0,      rc703,       rc702_mini,  rc702_state, empty_init, "Regnecentralen", "RC703 Piccolo (5.25\")",          MACHINE_SUPPORTS_SAVE )
+COMP( 1982, rc703maxi,   rc702,  0,      rc703maxi,   rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC703 Piccolo (8\")",             MACHINE_SUPPORTS_SAVE )
+COMP( 1979, rc702sem702, rc702,  0,      rc702sem702, rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo (8\", SEM702)",    MACHINE_SUPPORTS_SAVE )
