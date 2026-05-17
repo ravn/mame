@@ -211,9 +211,11 @@ INPUT_PORTS_END
  * Reconstructed-firmware uses for the SW1 bits (see autoload-in-c,
  * rcbios-in-c, cpnos-in-asm in the rc700-gensmedet workspace):
  *   bit 0 (S01): SIO-B console mode (rcbios IOBYTE_CON_JOINED gate).
- *   bit 1 (S02): PROM1 selector — 0 = chargen ROM (ROA327), load
- *                font into SEM702; 1 = lineprog PROM (cpnos-in-asm
- *                slave), skip the font load.
+ *   bit 1 (S02): PROM1 selector — 0 = signature check expects a
+ *                lineprog PROM at boot fallback; 1 = treat PROM1 as
+ *                code/data only, skip signature check.  No longer
+ *                gates chargen loading (autoload's define_sextants
+ *                runs unconditionally since 2026-05-17).
  *   bit 7 (S08): mini/maxi floppy (original-RC702 hardware bit). */
 static INPUT_PORTS_START( rc702_maxi )
 	PORT_INCLUDE( rc702_promcfg )
@@ -221,7 +223,7 @@ static INPUT_PORTS_START( rc702_maxi )
 	PORT_DIPNAME( 0x01, 0x00, "S01 SIO-B console (rcbios)")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x02, 0x00, "S02 PROM1=lineprog (skip chargen)")
+	PORT_DIPNAME( 0x02, 0x00, "S02 PROM1=lineprog")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
 	PORT_DIPNAME( 0x04, 0x00, "S03")
@@ -251,7 +253,7 @@ static INPUT_PORTS_START( rc702_mini )
 	PORT_DIPNAME( 0x01, 0x00, "S01 SIO-B console (rcbios)")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x02, 0x00, "S02 PROM1=lineprog (skip chargen)")
+	PORT_DIPNAME( 0x02, 0x00, "S02 PROM1=lineprog")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
 	PORT_DIPNAME( 0x04, 0x00, "S03")
