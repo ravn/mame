@@ -208,14 +208,18 @@ static INPUT_PORTS_START( rc702_promcfg )
 INPUT_PORTS_END
 
 /* Input ports - PROM reads port 0x14 bit 7: set=mini, clear=maxi.
- * Reconstructed-firmware uses for the SW1 bits (see autoload-in-c,
- * rcbios-in-c, cpnos-in-asm in the rc700-gensmedet workspace):
- *   bit 0 (S01): SIO-B console mode (rcbios IOBYTE_CON_JOINED gate).
- *   bit 1 (S02): PROM1 selector — 0 = signature check expects a
- *                lineprog PROM at boot fallback; 1 = treat PROM1 as
- *                code/data only, skip signature check.  No longer
- *                gates chargen loading (autoload's define_sextants
- *                runs unconditionally since 2026-05-17).
+ * Reconstructed-firmware uses for the SW1 bits (canonical doc is
+ * rc700-gensmedet/docs/SW1_BIT_MAP.md):
+ *   bit 0 (S01): console mode -- On (bit=0, default) = joined
+ *                (SIO-B + keyboard input, SIO-B + CRT output);
+ *                Off (bit=1) = local CRT + keyboard only.  Both
+ *                rcbios-in-c and cpnos-in-c honour this at cold boot.
+ *   bit 1 (S02): PROM1 lineprog enable -- On (bit=0, default) =
+ *                autoload checks PROM1 signature on floppy-boot
+ *                failure and jumps if present; Off (bit=1) = skip
+ *                the check, halt with NO DISKETTE NOR LINEPROG.
+ *                No longer gates chargen loading (autoload's
+ *                define_sextants runs unconditionally since 2026-05-17).
  *   bit 7 (S08): mini/maxi floppy (original-RC702 hardware bit). */
 static INPUT_PORTS_START( rc702_maxi )
 	PORT_INCLUDE( rc702_promcfg )
