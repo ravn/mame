@@ -681,8 +681,14 @@ void rc702_state::rc702_base(machine_config &config)
 	/* video hardware */
 	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
 	screen.set_refresh_hz(50);
-	screen.set_size(272*2, 200+4*8);
-	screen.set_visarea(0, 272*2-1, 0, 200-1);
+	// 80 chars * 7 px/char = 560 visible columns.  Previous values
+	// (272*2 = 544) clipped roughly the last 2 chars on every row --
+	// column 80 was off-screen in both live view and -aviwrite captures.
+	// Layout file (rc702.lay) targets 608 PAR-correct cols including
+	// overscan; 560 is the minimum that covers all 80 chars without
+	// horizontal blanking spilling into the displayable area.
+	screen.set_size(560, 200+4*8);
+	screen.set_visarea(0, 559, 0, 199);
 	screen.set_screen_update("crtc", FUNC(i8275_device::screen_update));
 
 	i8275_device &crtc(I8275(config, "crtc", 11640000/7));
