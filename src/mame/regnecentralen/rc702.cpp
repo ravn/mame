@@ -220,6 +220,11 @@ INPUT_PORTS_END
  *                the check, halt with NO DISKETTE NOR LINEPROG.
  *                No longer gates chargen loading (autoload's
  *                define_sextants runs unconditionally since 2026-05-17).
+ *   bit 2 (S03): cpnos transport (PROM1-only lineprog build) --
+ *                On (bit=0, default) = PIO-B (IRQ, 256 B ring),
+ *                Off (bit=1) = SIO-A (38400 polled).  Both linked,
+ *                jump-table patched at cold-init.  Ignored on
+ *                two-PROM cpnos builds.
  *   bit 7 (S08): mini/maxi floppy (original-RC702 hardware bit). */
 static INPUT_PORTS_START( rc702_maxi )
 	PORT_INCLUDE( rc702_promcfg )
@@ -230,7 +235,7 @@ static INPUT_PORTS_START( rc702_maxi )
 	PORT_DIPNAME( 0x02, 0x00, "S02 PROM1=lineprog")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x04, 0x00, "S03")
+	PORT_DIPNAME( 0x04, 0x00, "S03 cpnos transport (On=PIO, Off=SIO)")
 	PORT_DIPSETTING(    0x04, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
 	PORT_DIPNAME( 0x08, 0x00, "S04")
@@ -260,7 +265,7 @@ static INPUT_PORTS_START( rc702_mini )
 	PORT_DIPNAME( 0x02, 0x00, "S02 PROM1=lineprog")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x04, 0x00, "S03")
+	PORT_DIPNAME( 0x04, 0x00, "S03 cpnos transport (On=PIO, Off=SIO)")
 	PORT_DIPSETTING(    0x04, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
 	PORT_DIPNAME( 0x08, 0x00, "S04")
