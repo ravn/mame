@@ -202,7 +202,7 @@ static INPUT_PORTS_START( rc702_promcfg )
 	PORT_CONFNAME( 0x01, 0x00, "PROM0 (IC66) Type")
 	PORT_CONFSETTING(    0x00, "2716 (2KB)")
 	PORT_CONFSETTING(    0x01, "2732 (4KB)")
-	PORT_CONFNAME( 0x02, 0x00, "PROM1 (IC65) Type")
+	PORT_CONFNAME( 0x02, 0x02, "PROM1 (IC65) Type")
 	PORT_CONFSETTING(    0x00, "2716 (2KB)")
 	PORT_CONFSETTING(    0x02, "2732 (4KB)")
 INPUT_PORTS_END
@@ -797,7 +797,7 @@ ROM_START( rc702 )
 	// Optional load: drop a prom1.ic65 file into the rc702 rom path to
 	// use a user-supplied image (e.g., CP/NOS resident helpers).  When
 	// the file is absent, ROMREGION_ERASEFF keeps the original 0xFF fill.
-	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x0800, NO_DUMP )
+	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
 
 	ROM_REGION( 0x1000, "chargen", 0 )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) ) // char
@@ -832,7 +832,7 @@ ROM_START( rc702sem702 )
 	ROMX_LOAD( "roa375.ic66", 0x0000, 0x1000, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084), ROM_BIOS(0))
 
 	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF )
-	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x0800, NO_DUMP )
+	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
 
 	ROM_REGION( 0x1000, "chargen", ROMREGION_ERASEFF )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) )
