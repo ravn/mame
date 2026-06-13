@@ -918,18 +918,42 @@ macro   z80n:take_nmi
 
 macro   irqfetch
 {
-	// fetch the IRQ vector
+	// fetch the IRQ vector.  standard_irq_callback() notifies the
+	// debugger (`(interrupted at PC, IRQ N)` annotation in trace
+	// output), but the daisy-chain path goes straight to the daisy
+	// device's z80daisy_irq_ack() and bypasses that.  Notify the
+	// debugger explicitly so the trace command gets the annotation
+	// on daisy IRQs too (ravn fix 2026-06-13).
 	device_z80daisy_interface *intf = daisy_get_irq_device();
-	m_tmp_irq_vector = (intf != nullptr) ? intf->z80daisy_irq_ack() : standard_irq_callback(0, m_pc.w);
+	if (intf != nullptr)
+	{
+		if (debugger_enabled())
+			debug()->interrupt_hook(0, m_pc.w);
+		m_tmp_irq_vector = intf->z80daisy_irq_ack();
+	}
+	else
+	{
+		m_tmp_irq_vector = standard_irq_callback(0, m_pc.w);
+	}
 	LOGMASKED(LOG_INT, "single INT m_tmp_irq_vector $%02x\n", m_tmp_irq_vector);
 }
 
 macro   t6a84:irqfetch
 {
-	// fetch the IRQ vector
+	// fetch the IRQ vector.  See @irqfetch above for the rationale
+	// behind the daisy-path interrupt_hook call.
 	paged_irqfetch();
 	device_z80daisy_interface *intf = daisy_get_irq_device();
-	m_tmp_irq_vector = (intf != nullptr) ? intf->z80daisy_irq_ack() : standard_irq_callback(0, m_pc.w);
+	if (intf != nullptr)
+	{
+		if (debugger_enabled())
+			debug()->interrupt_hook(0, m_pc.w);
+		m_tmp_irq_vector = intf->z80daisy_irq_ack();
+	}
+	else
+	{
+		m_tmp_irq_vector = standard_irq_callback(0, m_pc.w);
+	}
 	LOGMASKED(LOG_INT, "single INT m_tmp_irq_vector $%02x\n", m_tmp_irq_vector);
 }
 
