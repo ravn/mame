@@ -25,6 +25,19 @@
 
 
 //**************************************************************************
+//  CONSTANTS
+//**************************************************************************
+
+// Per-device logerror gate.  Default ON because bridge events fire at
+// protocol rate (~hundreds/sec, not 14k/sec like the chip), so the
+// volume is low.  Toggle to 0 to silence locally.
+#define LOG_BRIDGE 1
+
+#define BRIDGE_TS_FMT "[%8llu us] "
+#define BRIDGE_TS_VAL ((unsigned long long)machine().time().as_ticks(1'000'000))
+
+
+//**************************************************************************
 //  DEVICE DEFINITION
 //**************************************************************************
 
@@ -83,7 +96,12 @@ void rc702_pio_cpnet_bridge_device::device_start()
 uint8_t rc702_pio_cpnet_bridge_device::read()
 {
 	if (m_input_index < m_input_count)
-		return m_input_buffer[m_input_index++];
+	{
+		uint8_t const b = m_input_buffer[m_input_index++];
+		if (LOG_BRIDGE) logerror(BRIDGE_TS_FMT "read() -> %02x  (FIFO[%u/%u])\n",
+		                         BRIDGE_TS_VAL, b, m_input_index, m_input_count);
+		return b;
+	}
 
 	// Empty: try a lazy refill so single-byte reads after long quiet
 	// periods don't have to wait for the next poll_tick.  Bitbanger's
@@ -91,16 +109,24 @@ uint8_t rc702_pio_cpnet_bridge_device::read()
 	m_input_count = m_stream->input(m_input_buffer, sizeof(m_input_buffer));
 	m_input_index = 0;
 	if (m_input_index < m_input_count)
-		return m_input_buffer[m_input_index++];
+	{
+		uint8_t const b = m_input_buffer[m_input_index++];
+		if (LOG_BRIDGE) logerror(BRIDGE_TS_FMT "read() -> %02x  (FIFO[%u/%u], lazy refill)\n",
+		                         BRIDGE_TS_VAL, b, m_input_index, m_input_count);
+		return b;
+	}
 
 	// Truly empty FIFO sentinel — matches the prior cpnet_bridge
 	// contract that callers (cpnos-rom transport_pio.c) rely on for
 	// the first-byte busy-wait in pio_recv_msg.
+	if (LOG_BRIDGE) logerror(BRIDGE_TS_FMT "read() -> ff  (FIFO empty)\n", BRIDGE_TS_VAL);
 	return 0xff;
 }
 
 void rc702_pio_cpnet_bridge_device::write(uint8_t data)
 {
+	if (LOG_BRIDGE) logerror(BRIDGE_TS_FMT "write(%02x) -> TCP\n", BRIDGE_TS_VAL, data);
+
 	m_stream->output(data);
 
 	// Pulse STB so the chip releases BRDY (Mode 0 output ack
@@ -114,6 +140,9 @@ void rc702_pio_cpnet_bridge_device::rdy_w(int state)
 {
 	bool const was_high = m_brdy_high;
 	m_brdy_high = (state != 0);
+
+	if (LOG_BRIDGE) logerror(BRIDGE_TS_FMT "rdy_w(%d) was=%d\n",
+	                         BRIDGE_TS_VAL, state, was_high ? 1 : 0);
 
 	// Rising edge: strobe only when there's a real byte to deliver.
 	// On real Pi/Pico hardware this corresponds to "only pulse STB
@@ -145,6 +174,9 @@ TIMER_CALLBACK_MEMBER(rc702_pio_cpnet_bridge_device::poll_tick)
 	{
 		m_input_count = m_stream->input(m_input_buffer, sizeof(m_input_buffer));
 		m_input_index = 0;
+		if (LOG_BRIDGE && m_input_count > 0)
+			logerror(BRIDGE_TS_FMT "poll_tick refill: %u bytes from TCP\n",
+			         BRIDGE_TS_VAL, m_input_count);
 	}
 
 	// Gate strobing on chip BRDY high AND buffer non-empty: BRDY

@@ -47,6 +47,18 @@ void debug_none::init_debugger(running_machine &machine)
 
 void debug_none::wait_for_debugger(device_t &device, bool firststop)
 {
+	// Process any -debugscript commands BEFORE calling go() to un-halt
+	// the CPU.  The outer wait_for_debugger loop (debugcpu.cpp:441)
+	// calls process_source_file() AFTER wait_for_debugger returns, but
+	// by then go() has set execution_running and process_source_file's
+	// inner `while (is_stopped())` exits immediately without reading
+	// any commands.  Result: with -debugger none, -debugscript was
+	// silently ignored.  Process the script while still halted; if
+	// it contains `go` the un-halt happens via that command and our
+	// fallback go() below is harmless (already running).  ravn fix
+	// 2026-06-13.
+	if (firststop)
+		m_machine->debugger().console().process_source_file();
 	m_machine->debugger().console().get_visible_cpu()->debug()->go();
 }
 
