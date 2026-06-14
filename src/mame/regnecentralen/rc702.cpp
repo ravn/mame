@@ -117,6 +117,7 @@ private:
 	void q_w(int state);
 	void qbar_w(int state);
 	void dack1_w(int state);
+	void dack2_w(int state);
 	I8275_DRAW_CHARACTER_MEMBER(display_pixels);
 	void rc702_palette(palette_device &palette) const;
 	void kbd_put(u8 data);
@@ -132,6 +133,12 @@ private:
 	uint16_t m_beepcnt = 0U;
 	bool m_eop = false;
 	bool m_dack1 = false;
+	// Real-line voltage of 8237 DACK2; HIGH (=1) means ch2 inactive.
+	// Fed alongside m_eop into the 74LS32 OR gate on MIC 11 whose output
+	// clocks the 74LS74 that selects between DMA ch2 and ch3 for the
+	// 8275 (roll-function second channel).  See
+	// rc700-gensmedet/docs/dma_ch3_8275_roll_function.md.
+	bool m_dack2 = true;
 	// SEM702 RAM-based character generator (IC82 swap-in for ROA327).
 	// 128 chars * 16 lines = 2 KB.  Uninitialised at power-on on real
 	// hardware; we fill with 0xFF so an un-programmed boot is visually
@@ -301,7 +308,12 @@ void rc702_state::machine_reset()
 	m_beepcnt = 0xffff;
 	m_dack1 = 0;
 	m_eop = 0;
+	// ch2 DACK starts inactive (real line HIGH); along with m_eop=0
+	// (TC inactive after init) keeps the 74LS32 OR output HIGH at reset.
+	m_dack2 = true;
 	m_7474->preset_w(1);
+	m_7474->d_w(1);          // D input tied to LOGICAL ONE (R35 pull-up)
+	m_7474->clock_w(1);      // OR-gate output is HIGH at reset
 
 	// Set FDC data rate: 8" maxi drives use 500 kbps, 5.25" mini use 250 kbps.
 	// DIP switch S08 bit 7: clear = maxi (8"), set = mini (5.25").
@@ -331,6 +343,7 @@ void rc702_state::machine_start()
 	save_item(NAME(m_beepcnt));
 	save_item(NAME(m_eop));
 	save_item(NAME(m_dack1));
+	save_item(NAME(m_dack2));
 	save_item(NAME(m_kbd_data));
 
 	if (m_has_sem702)
@@ -393,6 +406,13 @@ void rc702_state::eop_w(int state)
 		m_fdc->tc_w(1);
 	else
 		m_fdc->tc_w(0);
+
+	// 74LS32 OR gate on MIC 11: inputs = /DACK2 + /TC (real-line voltages,
+	// active-low).  Output is LOW only when both are simultaneously active;
+	// rising edge at end of TC pulse clocks the 74LS74 with D=1, switching
+	// CRTC DRQ routing from ch2 to ch3 (the "roll function" — see
+	// rc700-gensmedet/docs/dma_ch3_8275_roll_function.md).
+	m_7474->clock_w(m_dack2 || m_eop);
 }
 
 void rc702_state::dack1_w(int state)
@@ -408,6 +428,17 @@ void rc702_state::dack1_w(int state)
 		m_fdc->tc_w(0);
 
 	//m_fdc->dack_w = state;  // pin not emulated
+}
+
+void rc702_state::dack2_w(int state)
+{
+	if (state == m_dack2)
+		return;
+
+	m_dack2 = state;
+
+	// 74LS32 OR gate on MIC 11 -- see comment in eop_w() above.
+	m_7474->clock_w(m_dack2 || m_eop);
 }
 
 void rc702_state::port14_w(uint8_t data)
@@ -673,6 +704,11 @@ void rc702_state::rc702_base(machine_config &config)
 	m_dma->out_memw_callback().set(FUNC(rc702_state::memory_write_byte));
 	m_dma->out_iow_callback<2>().set("crtc", FUNC(i8275_device::dack_w));
 	m_dma->out_iow_callback<3>().set("crtc", FUNC(i8275_device::dack_w));
+	// ch2 DACK feeds the 74LS32 OR gate on MIC 11 (alongside the
+	// 8237's TC/EOP output) -- the OR gate clocks the 74LS74 that
+	// gates DRQ between ch2 and ch3 for the 8275's roll function.
+	// See rc700-gensmedet/docs/dma_ch3_8275_roll_function.md.
+	m_dma->out_dack_callback<2>().set(FUNC(rc702_state::dack2_w));
 
 	TTL7474(config, m_7474, 0);
 	m_7474->output_cb().set(FUNC(rc702_state::q_w));
