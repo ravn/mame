@@ -428,7 +428,6 @@ void simpsons_state::machine_reset()
 
 	// Z80 _NMI goes low at same time as reset
 	m_audiocpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
-	m_audiocpu->pulse_input_line(INPUT_LINE_RESET, attotime::zero);
 }
 
 
@@ -673,7 +672,7 @@ void simpsons_state::simpsons(machine_config &config)
 	m_k053246->set_config(NORMAL_PLANE_ORDER, -43, 23);
 	m_k053246->set_palette("palette");
 
-	K053251(config, m_k053251, 0);
+	K053251(config, m_k053251);
 
 	// sound hardware
 	SPEAKER(config, "speaker", 2).front();

@@ -7,14 +7,15 @@
 #pragma once
 
 #include "pci.h"
+
 #include "bus/isa/isa.h"
 #include "bus/pc_kbd/pc_kbdc.h"
 #include "cpu/i386/i386.h"
 #include "machine/am9517a.h"
+#include "machine/at_keybc.h"
+#include "machine/ds128x.h"
 #include "machine/pic8259.h"
 #include "machine/pit8253.h"
-#include "machine/ds128x.h"
-#include "machine/at_keybc.h"
 #include "sound/spkrdev.h"
 
 
@@ -25,12 +26,6 @@ public:
 	vt82c586b_isa_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, T &&cpu_tag)
 		: vt82c586b_isa_device(mconfig, tag, owner, clock)
 	{
-		// revisions:
-		// 0*h for regular VT82C586
-		// 2*h for '586A
-		// 3*h for '586B OEM Silicon
-		// 4*h for '586B Production Silicon
-		set_ids(0x11060586, 0x41, 0x060100, 0x00000000);
 		set_multifunction_device(true);
 		set_cpu_tag(std::forward<T>(cpu_tag));
 	}
@@ -42,12 +37,20 @@ public:
 	auto cpureset() { return m_write_cpureset.bind(); }
 	auto pcirst() { return m_write_pcirst.bind(); }
 
+	// external, from ACPI
+	void acpi_pin_config_w(u8 data) { m_acpi_pin_config = data & 0xf; }
+	void pc_acpi_w(int state) { redirect_irq(m_acpi_pin_config, state); }
+
+	void pc_ide0_w(int state) { redirect_irq(m_ide_pin_config[0], state); }
+	void pc_ide1_w(int state) { redirect_irq(m_ide_pin_config[1], state); }
+
 	void pc_irq1_w(int state);
 	void pc_irq3_w(int state);
 	void pc_irq4_w(int state);
 	void pc_irq6_w(int state);
 	void pc_irq7_w(int state);
 	void pc_irq8n_w(int state);
+	void pc_irq9_w(int state);
 	void pc_irq12m_w(int state);
 	// TODO: remaps externally for IDE, cfr. config $4a
 	void pc_irq14_w(int state);
@@ -64,6 +67,8 @@ public:
 	template <typename T> void set_cpu_tag(T &&tag) { m_host_cpu.set_tag(std::forward<T>(tag)); }
 
 protected:
+	vt82c586b_isa_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
+
 	virtual void device_add_mconfig(machine_config & config) override;
 	virtual void device_config_complete() override;
 	virtual void device_start() override ATTR_COLD;
@@ -158,7 +163,6 @@ private:
 	void at_speaker_set_spkrdata(uint8_t data);
 	uint8_t get_slave_ack(offs_t offset);
 	void pc_irq5_w(int state);
-	void pc_irq9_w(int state);
 	void pc_irq10_w(int state);
 	void pc_irq11_w(int state);
 	void iochck_w(int state);
@@ -196,9 +200,29 @@ private:
 	u8 m_pirq_select;
 	u8 m_mirq[3];
 	u8 m_mirq_pin_config;
+
+	u8 ide_irq_routing_r(offs_t offset);
+	void ide_irq_routing_w(offs_t offset, u8 data);
+	u8 m_ide_pin_config[2];
+	u8 m_acpi_pin_config;
+};
+
+class vt82c596b_isa_device : public vt82c586b_isa_device
+{
+public:
+	template <typename T>
+	vt82c596b_isa_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, T &&cpu_tag)
+		: vt82c596b_isa_device(mconfig, tag, owner, clock)
+	{
+		set_multifunction_device(true);
+		set_cpu_tag(std::forward<T>(cpu_tag));
+	}
+
+	vt82c596b_isa_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+
 };
 
 DECLARE_DEVICE_TYPE(VT82C586B_ISA, vt82c586b_isa_device)
-
+DECLARE_DEVICE_TYPE(VT82C596B_ISA, vt82c596b_isa_device)
 
 #endif // MAME_MACHINE_VT82C586B_ISA_H

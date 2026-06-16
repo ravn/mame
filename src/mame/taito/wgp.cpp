@@ -410,6 +410,7 @@ Stephh's notes (based on the game M68000 code and some tests) :
 #include "sound/ymopn.h"
 
 #include "emupal.h"
+#include "input.h" // for video debug keys
 #include "screen.h"
 #include "speaker.h"
 #include "tilemap.h"
@@ -1644,7 +1645,7 @@ void wgp_state::wgp(machine_config &config)
 
 	config.set_maximum_quantum(attotime::from_hz(30000));
 
-	TC0220IOC(config, m_tc0220ioc, 0);
+	TC0220IOC(config, m_tc0220ioc);
 	m_tc0220ioc->read_0_callback().set_ioport("DSWA");
 	m_tc0220ioc->read_1_callback().set_ioport("DSWB");
 	m_tc0220ioc->read_2_callback().set_ioport("IN0");
@@ -1673,7 +1674,7 @@ void wgp_state::wgp(machine_config &config)
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_wgp);
 	PALETTE(config, m_palette).set_format(palette_device::RGBx_444, 4096);
 
-	TC0100SCN(config, m_tc0100scn, 0);
+	TC0100SCN(config, m_tc0100scn);
 	m_tc0100scn->set_palette(m_palette);
 
 	// sound hardware
@@ -1686,7 +1687,7 @@ void wgp_state::wgp(machine_config &config)
 	ymsnd.add_route(1, "speaker", 1.0, 0);
 	ymsnd.add_route(2, "speaker", 1.0, 1);
 
-	TC0140SYT(config, m_tc0140syt, 0);
+	TC0140SYT(config, m_tc0140syt);
 	m_tc0140syt->nmi_callback().set_inputline(m_audiocpu, INPUT_LINE_NMI);
 	m_tc0140syt->reset_callback().set_inputline(m_audiocpu, INPUT_LINE_RESET);
 }
@@ -1919,10 +1920,10 @@ ROM_START( wgp2 ) // original Taito PCB with original Taito mask ROMs. EPROMs al
 	ROM_REGION( 0x100000, "maincpu", 0 ) // 68000
 	ROM_LOAD16_BYTE( "12.12",    0x00000, 0x20000, CRC(41d0b614) SHA1(b52e397ff36c89e4e5fb15b36f744da2b840abda) ) // hand-written label
 	ROM_LOAD16_BYTE( "13.13",    0x00001, 0x20000, CRC(131018d8) SHA1(417d46829e4443abb9a6fcde386506b0942ba71a) ) // hand-written label
-	ROM_LOAD16_WORD_SWAP( "c32-10.9",  0x80000, 0x80000, CRC(a44c66e9) SHA1(b5fa978e43303003969033b8096fd68885cfc202) ) /* data rom */
+	ROM_LOAD16_WORD_SWAP( "c32-10.9",  0x80000, 0x80000, CRC(a44c66e9) SHA1(b5fa978e43303003969033b8096fd68885cfc202) ) // data ROM
 
 	ROM_REGION( 0x40000, "sub", 0 ) // 68000
-	ROM_LOAD16_BYTE( "64.64", 0x00000, 0x20000, CRC(ad3eafda) SHA1(5d500b4bee4e31f520205d02a4f7becca2ef2d3e) BAD_DUMP ) // hand-written label, this one was a bit flaky so marking as bad as precaution
+	ROM_LOAD16_BYTE( "64.64", 0x00000, 0x20000, CRC(1ced4a61) SHA1(89cf307b4799b46521552b0c6a15ddf4fea84b5f) ) // hand-written label
 	ROM_LOAD16_BYTE( "63.63", 0x00001, 0x20000, CRC(73606a1e) SHA1(5a649c8909e999dd9b6bc832422f9011bcbfbe68) ) // hand-written label
 
 	ROM_REGION( 0x10000, "audiocpu", 0 ) // Z80

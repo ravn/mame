@@ -129,10 +129,9 @@ void mrjong_state::palette(palette_device &palette) const
 		int const g = 0x21 * bit0 + 0x47 * bit1 + 0x97 * bit2;
 
 		// blue component
-		bit0 = 0;
-		bit1 = BIT(color_prom[i], 6);
-		bit2 = BIT(color_prom[i], 7);
-		int const b = 0x21 * bit0 + 0x47 * bit1 + 0x97 * bit2;
+		bit0 = BIT(color_prom[i], 6);
+		bit1 = BIT(color_prom[i], 7);
+		int const b = 0x52 * bit0 + 0xad * bit1;
 
 		palette.set_indirect_color(i, rgb_t(r, g, b));
 	}
@@ -261,7 +260,7 @@ void mrjong_state::io_map(address_map &map)
 	map(0x00, 0x00).portr("P2").w(FUNC(mrjong_state::flipscreen_w));
 	map(0x01, 0x01).portr("P1").w("sn1", FUNC(sn76489a_device::write));
 	map(0x02, 0x02).portr("DSW").w("sn2", FUNC(sn76489a_device::write));
-	map(0x03, 0x03).r(FUNC(mrjong_state::io_0x03_r));     // Unknown
+	map(0x03, 0x03).r(FUNC(mrjong_state::io_0x03_r)); // Unknown
 }
 
 /*************************************
@@ -279,7 +278,7 @@ static INPUT_PORTS_START( mrjong )
 	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_PLAYER(2)
 	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_START1 )
 	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_START2 )
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )        // ????
+	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN ) // ????
 
 	PORT_START("P1")
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_4WAY PORT_PLAYER(1)

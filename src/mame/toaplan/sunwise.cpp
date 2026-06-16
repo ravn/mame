@@ -189,7 +189,7 @@ static INPUT_PORTS_START( pwrkick )
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN3 ) PORT_NAME(u8"Coin Exchange (¥100)")
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_GAMBLE_BOOK )
 	PORT_BIT( 0x30, IP_ACTIVE_HIGH, IPT_UNUSED )
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_GAMBLE_SERVICE ) PORT_NAME("Attendant Key")
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_SERVICE1 ) PORT_NAME("Attendant Key")
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_NAME("Coin 1 (Medal)")
 
 	// The specific "Payout" button shown on the test screen and diagnostic menu does not exist.
@@ -273,7 +273,7 @@ static INPUT_PORTS_START( burgkids )
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN3 ) PORT_NAME(u8"Coin Exchange (¥100)")
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_GAMBLE_BOOK )
 	PORT_BIT( 0x30, IP_ACTIVE_HIGH, IPT_UNUSED )
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_GAMBLE_SERVICE ) PORT_NAME("Attendant Key")
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_SERVICE1 ) PORT_NAME("Attendant Key")
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_NAME("Coin 1 (Medal)")
 INPUT_PORTS_END
 
@@ -542,7 +542,7 @@ void sunwise_state::othldrby(machine_config &config) // Sunwise S951060-VGP PCB 
 	M68000(config, m_maincpu, 20_MHz_XTAL/2); // assumed same as pwrkick
 	m_maincpu->set_addrmap(AS_PROGRAM, &sunwise_state::othldrby_68k_mem);
 
-	TOAPLAN_COINCOUNTER(config, "coincounter", 0);
+	TOAPLAN_COINCOUNTER(config, "coincounter");
 
 	UPD4992(config, m_rtc, 32.768_kHz_XTAL);
 

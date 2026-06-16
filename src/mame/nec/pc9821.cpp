@@ -313,14 +313,15 @@ void pc9821_state::ext2_video_ff_w(uint8_t data)
 // (it's seemingly the official NEC naming)
 uint16_t pc9821_state::pc9821_grcg_gvram_r(offs_t offset, uint16_t mem_mask)
 {
-	if (m_ex_video_ff[ANALOG_256_MODE])
+	if(m_ex_video_ff[ANALOG_256_MODE])
 	{
 		int bank_idx = offset >> 14;
-		if (bank_idx > 1) return 0xffff;
-		
+		if (bank_idx > 1)
+			return 0xffff;
+
 		u8 *ext_gvram = (u8 *)m_ext_gvram.target();
 
-		if (m_pegc.packed_mode)
+		if(m_pegc.packed_mode)
 		{
 			// Packed Mode Read
 			//logerror("Packed Mode R Used\n");
@@ -340,24 +341,23 @@ uint16_t pc9821_state::pc9821_grcg_gvram_r(offs_t offset, uint16_t mem_mask)
 			bool shift_dir = BIT(rop, 9);
 			bool pat_update = BIT(rop, 13);
 
-			for (int i = 0; i < 16; i++)
+			for(int i = 0; i < 16; i++)
 			{
 				u32 tmp = (shift_dir ? (addr + 15 - i) : (addr + i)) & 0x7ffff;
 				u8 pixel_data = ext_gvram[tmp];
 
-				if ((pixel_data ^ pal1) & ~plane_mask)
+				if(!((pixel_data ^ pal1) & ~plane_mask))
 					ret |= (1 << i);
 
-				if (pat_update)
-				{
+				if(pat_update && !machine().side_effects_disabled())
 					m_pegc.pattern[tmp & m_pegc.pattern_mask] = pixel_data;
-				}
 			}
 
 			// VRAM to VRAM
-			if (!cpu_data)
+			if(!cpu_data && !machine().side_effects_disabled())
 			{
-				if (m_pegc.remain == 0) {
+				if(m_pegc.remain == 0)
+				{
 					m_pegc.remain = ((m_pegc.regs[0x10] | (m_pegc.regs[0x11] << 8)) & 0x0fff) + 1;
 					m_pegc.first_process_w = true;
 					m_pegc.first_process_r = true;
@@ -367,15 +367,13 @@ uint16_t pc9821_state::pc9821_grcg_gvram_r(offs_t offset, uint16_t mem_mask)
 				u32 src_shift = m_pegc.first_process_r ? (m_pegc.regs[0x12] & 0x1f) : 0;
 				int read_count = m_pegc.first_process_r ? (16 - src_shift) : 16;
 
-				for (int i = 0; i < read_count; i++)
+				for(int i = 0; i < read_count; i++)
 				{
 					u32 tmp = (shift_dir ? (addr + 15 - src_shift - i) : (addr + src_shift + i)) & 0x7ffff;
 					u8 pixel_data = ext_gvram[tmp];
 
-					if (m_pegc.shift_cnt < sizeof(m_pegc.shift_buffer))
-					{
+					if(m_pegc.shift_cnt < std::size(m_pegc.shift_buffer))
 						m_pegc.shift_buffer[m_pegc.shift_cnt++] = pixel_data;
-					}
 				}
 				m_pegc.first_process_r = false;
 			}
@@ -393,10 +391,10 @@ void pc9821_state::pc9821_grcg_gvram_w(offs_t offset, uint16_t data, uint16_t me
 	{
 		int bank_idx = offset >> 14;
 		if (bank_idx > 1) return;
-		
+
 		u8 *ext_gvram = (u8 *)m_ext_gvram.target();
 
-		if (m_pegc.packed_mode)
+		if(m_pegc.packed_mode)
 		{
 			// Packed Mode
 			//logerror("Packed Mode W Used\n");
@@ -410,7 +408,7 @@ void pc9821_state::pc9821_grcg_gvram_w(offs_t offset, uint16_t data, uint16_t me
 			u8 plane_mask = m_pegc.regs[0x04];
 			u16 rop = m_pegc.regs[0x08] | (m_pegc.regs[0x09] << 8);
 			u32 pixel_mask = m_pegc.regs[0x0c] | (m_pegc.regs[0x0d] << 8) | (m_pegc.regs[0x0e] << 16) | (m_pegc.regs[0x0f] << 24);
-			
+
 			bool cpu_data = BIT(rop, 8);
 			bool shift_dir = BIT(rop, 9);
 			u8 ropmethod = (rop >> 10) & 3;
@@ -418,7 +416,8 @@ void pc9821_state::pc9821_grcg_gvram_w(offs_t offset, uint16_t data, uint16_t me
 			u8 pal1 = m_pegc.regs[0x14];
 			u8 pal2 = m_pegc.regs[0x18];
 
-			if (m_pegc.remain == 0) {
+			if(m_pegc.remain == 0)
+			{
 				m_pegc.remain = ((m_pegc.regs[0x10] | (m_pegc.regs[0x11] << 8)) & 0x0fff) + 1;
 				m_pegc.first_process_w = true;
 				m_pegc.first_process_r = true;
@@ -428,18 +427,18 @@ void pc9821_state::pc9821_grcg_gvram_w(offs_t offset, uint16_t data, uint16_t me
 			u32 dst_shift = m_pegc.first_process_w ? (m_pegc.regs[0x13] & 0x1f) : 0;
 			u32 addr = (offset * 16);
 
-			if (cpu_data)
+			if(cpu_data)
 			{
 				u32 src_shift = m_pegc.first_process_w ? (m_pegc.regs[0x12] & 0x1f) : 0;
 				int push_count = m_pegc.first_process_w ? (16 - src_shift) : 16;
-				
-				for (int i = 0; i < push_count; i++) {
+
+				for(int i = 0; i < push_count; i++)
+				{
 					int orig_i = i + src_shift;
-					int bit_idx = ((orig_i / 8) * 8) + (7 - (orig_i % 8)); 
-					
-					if (m_pegc.shift_cnt < sizeof(m_pegc.shift_buffer)) {
+					int bit_idx = ((orig_i / 8) * 8) + (7 - (orig_i % 8));
+
+					if(m_pegc.shift_cnt < sizeof(m_pegc.shift_buffer))
 						m_pegc.shift_buffer[m_pegc.shift_cnt++] = (data & (1 << bit_idx)) ? 0xff : 0x00;
-					}
 				}
 			}
 
@@ -448,26 +447,26 @@ void pc9821_state::pc9821_grcg_gvram_w(offs_t offset, uint16_t data, uint16_t me
 			if (process_count > m_pegc.shift_cnt) process_count = m_pegc.shift_cnt;
 
 			// ROP
-			for (int i = 0; i < process_count; i++)
+			for(int i = 0; i < process_count; i++)
 			{
 				u32 tmp = (shift_dir ? (addr + 15 - dst_shift - i) : (addr + dst_shift + i)) & 0x7ffff;
-				
+
 				int p_idx = i + dst_shift;
 				u32 pixel_mask_pos = 1 << ((p_idx / 8) * 8 + (7 - (p_idx & 7)));
 
-				if (pixel_mask & pixel_mask_pos)
+				if(pixel_mask & pixel_mask_pos)
 				{
 					u8 src = m_pegc.shift_buffer[i];
 					u8 dst = ext_gvram[tmp];
 
-					if (ropupdmode)
+					if(ropupdmode)
 					{
 						ext_gvram[tmp] &= plane_mask;
 
 						u8 c4 = 0, c8 = 0;
-						if (ropmethod == 0) { c4 = c8 = m_pegc.pattern[tmp & m_pegc.pattern_mask]; } 
-						else if (ropmethod == 1) { c4 = c8 = pal2; } 
-						else if (ropmethod == 2) { c4 = c8 = pal1; } 
+						if (ropmethod == 0) { c4 = c8 = m_pegc.pattern[tmp & m_pegc.pattern_mask]; }
+						else if (ropmethod == 1) { c4 = c8 = pal2; }
+						else if (ropmethod == 2) { c4 = c8 = pal1; }
 						else { c4 = pal1; c8 = pal2; }
 
 						u8 res = 0;
@@ -495,7 +494,8 @@ void pc9821_state::pc9821_grcg_gvram_w(offs_t offset, uint16_t data, uint16_t me
 					else
 					{
 						u8 res = 0;
-						for(int j = 0; j < 8; j++) {
+						for(int j = 0; j < 8; j++)
+						{
 							if (src & (1 << j)) res |= (~plane_mask | dst) & (1 << j);
 							else                res |= (plane_mask & dst) & (1 << j);
 						}
@@ -505,17 +505,19 @@ void pc9821_state::pc9821_grcg_gvram_w(offs_t offset, uint16_t data, uint16_t me
 				m_pegc.remain--;
 			}
 
-			if (m_pegc.remain == 0) {
+			if(m_pegc.remain == 0)
+			{
 				m_pegc.first_process_w = true;
 				m_pegc.first_process_r = true;
 				m_pegc.shift_cnt = 0;
-			} else {
+			}
+			else
+			{
 				m_pegc.first_process_w = false;
-				
+
 				int remaining_shift = m_pegc.shift_cnt - process_count;
-				for (int i = 0; i < remaining_shift; i++) {
+				for(int i = 0; i < remaining_shift; i++)
 					m_pegc.shift_buffer[i] = m_pegc.shift_buffer[i + process_count];
-				}
 				m_pegc.shift_cnt = remaining_shift;
 			}
 			return;
@@ -617,7 +619,7 @@ void pc9821_state::pegc_mmio_map(address_map &map)
 			{
 				// Mode 1: 1 palette x 32 pixels
 				int pix_idx = offset;
-				
+
 				if (pix_idx < 32 && ACCESSING_BITS_0_7) {
 					m_pegc.pattern[pix_idx] = data & 0xff;
 				}
@@ -1054,6 +1056,22 @@ MACHINE_START_MEMBER(pc9821_state,pc9821)
 {
 	m_pit_delay = timer_alloc(FUNC(pc9821_state::pit_delay), this);
 	MACHINE_START_CALL_MEMBER(pc9801bx2);
+	save_item(STRUCT_MEMBER(m_pegc, pal_entry));
+	save_pointer(NAME(m_pegc.r), 0x100);
+	save_pointer(NAME(m_pegc.g), 0x100);
+	save_pointer(NAME(m_pegc.b), 0x100);
+	save_item(STRUCT_MEMBER(m_pegc, bank), 2);
+	save_item(STRUCT_MEMBER(m_pegc, packed_mode));
+	save_pointer(NAME(m_pegc.regs), 0x100);
+	save_pointer(NAME(m_pegc.lastdata), 64);
+	save_pointer(NAME(m_pegc.pattern), 32);
+	save_item(STRUCT_MEMBER(m_pegc, pattern_mask));
+	save_item(STRUCT_MEMBER(m_pegc, lastdatalen));
+	save_item(STRUCT_MEMBER(m_pegc, remain));
+	save_item(STRUCT_MEMBER(m_pegc, first_process_w));
+	save_item(STRUCT_MEMBER(m_pegc, first_process_r));
+	save_pointer(NAME(m_pegc.shift_buffer), 64);
+	save_item(STRUCT_MEMBER(m_pegc, shift_cnt));
 
 	// ...
 }
@@ -1113,6 +1131,7 @@ void pc9821_state::pc9821(machine_config &config)
 	m_pit->set_clk<1>(MAIN_CLOCK_X2);
 	m_pit->set_clk<2>(MAIN_CLOCK_X2);
 
+	// FIXME: set clock to SCKL1 clock frequency
 	PC98_CBUS_SLOT(config.replace(), "cbus:0", 0, "cbus", pc98_cbus_devices, "pc9801_86");
 
 	MCFG_MACHINE_START_OVERRIDE(pc9821_state, pc9821)
@@ -1133,7 +1152,7 @@ void pc9821_state::pc9821(machine_config &config)
 
 //  m_hgdc[1]->set_display_pixels(FUNC(pc9821_state::pegc_display_pixels));
 
-	PC98_SDIP(config, "sdip", 0);
+	PC98_SDIP(config, "sdip");
 
 	// RAM 1.6MB (S1) / 3.6 (S2) ~ 15M (with dedicated 10MB module)
 	config.device_remove("simm");
@@ -1206,6 +1225,7 @@ void pc9821_canbe_state::pc9821ce(machine_config &config)
 //  m_ram->set_extra_options("6M,8M,14M,15M");
 
 	// pc9801-86 (built-in)
+	// FIXME: set clock to SCKL1 clock frequency
 	PC98_CBUS_SLOT(config.replace(), "cbus:0", 0, "cbus", pc98_cbus_devices, nullptr);
 	PC98_CBUS_SLOT(config, "cbus:mb1", 0, "cbus", pc98_cbus_devices, "sound_pc9821ce", true);
 
@@ -1234,6 +1254,7 @@ void pc9821_canbe_state::pc9821cx3(machine_config &config)
 	//pit_clock_config(config, xtal / 4); // unknown, fixes timer error at POST
 
 //  m_cbus[0]->set_default_option(nullptr);
+	// FIXME: set clock to SCKL1 clock frequency
 	PC98_CBUS_SLOT(config.replace(), "cbus:0", 0, "cbus", pc98_cbus_devices, nullptr);
 	PC98_CBUS_SLOT(config, "cbus:mb1", 0, "cbus", pc98_cbus_devices, "sound_pc9821cx3", true);
 
@@ -1254,7 +1275,7 @@ void pc9821_canbe_state::pc9821cx3(machine_config &config)
 	// C-Bus x 3
 	// PC-9821CB-B04, on dedicated bus (Fax/Modem 14'400 bps) and IrDA board (115'200 bps)
 	// Optional PC-9821C3-B02 MIDI board, on dedicated bus
-	PCI_ROOT(config, "pci", 0);
+	PCI_ROOT(config, "pci");
 	// ...
 }
 
@@ -1289,7 +1310,7 @@ void pc9821_mate_x_state::pc9821xa16(machine_config &config)
 	// 1.2GB HDD
 	// CD-Rom x4
 
-	PCI_ROOT(config, "pci", 0);
+	PCI_ROOT(config, "pci");
 	// ...
 
 	// Xa16/W specs (same as above except)
@@ -1317,7 +1338,7 @@ void pc9821_mate_x_state::pc9821xv13(machine_config &config)
 
 	// Xv13/W identical to Xa16/W specs with MGA-2064W as PCI GFX card
 	// PCI rev 2.0 (VLSI Supercore596 Wildcat) or 2.1 (Intel 430HX)
-	PCI_ROOT(config, "pci", 0);
+	PCI_ROOT(config, "pci");
 	// ...
 }
 
@@ -1334,7 +1355,7 @@ void pc9821_mate_r_state::pc9821ra20(machine_config &config)
 //  RAM(config.replace(), m_ram).set_default_size("16M").set_extra_options("32M,64M,128M");
 
 	// Intel 440FX
-	PCI_ROOT(config, "pci", 0);
+	PCI_ROOT(config, "pci");
 	// ...
 
 	// S3 manufactured Trident TGUI9682XGi with 2MB VRAM (on board PCI)
@@ -1358,7 +1379,7 @@ void pc9821_mate_r_state::pc9821ra266(machine_config &config)
 //  RAM(config.replace(), m_ram).set_default_size("32M").set_extra_options("64M,128M,192M,256M");
 
 	// Intel 440FX
-	PCI_ROOT(config, "pci", 0);
+	PCI_ROOT(config, "pci");
 	// ...
 
 	// Trident TGUI9682XGi + integrated 98 gfx card
@@ -1393,7 +1414,7 @@ void pc9821_mate_r_state::pc9821ra333(machine_config &config)
 	// 3.5"x1, 24xCD-ROM
 	// built-in ethernet 100BASE-TX/10BASE-T
 
-	PCI_ROOT(config, "pci", 0);
+	PCI_ROOT(config, "pci");
 	// ...
 }
 

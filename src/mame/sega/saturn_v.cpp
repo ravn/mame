@@ -95,7 +95,7 @@ This is a legacy core, all game based notes are for a future device rewrite.
 Please don't remove them if for no reason you truly want to mess with this.
 -------------------------- WARNING WARNING WARNING --------------------------
 
-Framebuffer todo:
+Framebuffer TODO:
 - finish manual erase
 - add proper framebuffer erase
 - 8 bpp support - now we always draw as 16 bpp, but this is not a problem since
@@ -106,6 +106,8 @@ Framebuffer todo:
 
 #include "emu.h"
 #include "saturn.h"
+
+#include "input.h" // for video debug keys
 
 #define LOG_VDP2 (1U << 1)
 #define LOG_ROZ  (1U << 2)
@@ -428,7 +430,7 @@ void saturn_state::vdp1_regs_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 			if ( VDP1_LOG ) logerror( "VDP1: Draw forced termination register write: %08X %08X\n", offset*2, data );
 			break;
 		default:
-			printf("Warning: write to unknown VDP1 reg %08x %08x\n",offset*2,data);
+			logerror("Warning: write to unknown VDP1 reg %08x %08x\n",offset*2,data);
 			break;
 	}
 

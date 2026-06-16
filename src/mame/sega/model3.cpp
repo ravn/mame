@@ -15,7 +15,8 @@
     Step 2.1: 166 MHz PPC, same 3D engine as 2.0, differences unknown
 
     Game status:
-    vf3/vf3a/vf3tb - crashes
+    vf3/vf3a/vf3tb - crashes sometimes, performance dips at startup (illegal polygons filling the
+                     pipeline?), runs too slow during gameplay
     getbassur - works
     basssdx/getbass/getbassdx - I/O board error (?)
 
@@ -32,7 +33,7 @@
     skichamp - boots after skipping the drive board errors, massive slowdowns
     srally2 - works, uses JTAG patch, draws no polygon if coin is inserted at Sega logo
     srally2p/srally2pa/sraly2dx - needs specific JTAG patch / bypass
-    von2/von2a/von2o/von254g - works
+    von2/von2a/von2o/von254g - works, corrupted robot textures (mip mapping?)
     fvipers2 - crashes after player selection
     vs298 - hangs with an onscreen "unknown error code" during attract, polygon covers most of the 3d.
     vs299/vs2v991 - works, polygon covers most of the 3d.
@@ -6347,7 +6348,7 @@ void model3_state::add_cpu_166mhz(machine_config &config)
 
 void model3_state::dsb2_config(machine_config &config)
 {
-	DSB2(config, m_dsb2, 0);
+	DSB2(config, m_dsb2);
 	m_dsb2->add_route(0, "speaker", 1.0, 0);
 	m_dsb2->add_route(1, "speaker", 1.0, 1);
 
@@ -6368,7 +6369,7 @@ void model3_state::add_base_devices(machine_config &config)
 	NVRAM(config, "backup", nvram_device::DEFAULT_ALL_1);
 	RTC72421(config, m_rtc, XTAL(32'768)); // internal oscillator
 
-	SEGA_315_5649(config, m_io, 0);
+	SEGA_315_5649(config, m_io);
 	m_io->out_pa_callback().set(FUNC(model3_state::eeprom_w));
 	m_io->in_pb_callback().set(FUNC(model3_state::input_r));
 	m_io->in_pc_callback().set_ioport("IN2");
@@ -6406,16 +6407,16 @@ void model3_state::add_base_devices(machine_config &config)
 	scsp2.add_route(0, "speaker", 1.0, 0);
 	scsp2.add_route(1, "speaker", 1.0, 1);
 
-	SEGA_BILLBOARD(config, m_billboard, 0);
+	SEGA_BILLBOARD(config, m_billboard);
 
 	config.set_default_layout(layout_segabill);
 }
 
 void model3_state::add_scsi_devices(machine_config &config)
 {
-	SCSI_PORT(config, "scsi", 0);
+	SCSI_PORT(config, "scsi");
 
-	LSI53C810(config, m_lsi53c810, 0);
+	LSI53C810(config, m_lsi53c810);
 	m_lsi53c810->set_irq_callback(FUNC(model3_state::scsi_irq_callback));
 	m_lsi53c810->set_dma_callback(FUNC(model3_state::real3d_dma_callback));
 	m_lsi53c810->set_fetch_callback(FUNC(model3_state::scsi_fetch));
@@ -6426,7 +6427,7 @@ void model3_state::add_crypt_devices(machine_config &config)
 {
 	m_maincpu->set_addrmap(AS_PROGRAM, &model3_state::model3_5881_mem);
 
-	SEGA315_5881_CRYPT(config, m_cryptdevice, 0);
+	SEGA315_5881_CRYPT(config, m_cryptdevice);
 	m_cryptdevice->set_read_cb(FUNC(model3_state::crypt_read_callback));
 }
 
@@ -6469,7 +6470,7 @@ void model3_state::getbass(machine_config &config)
 	iocpu.out_p2_callback().set("ioeeprom", FUNC(eeprom_serial_93cxx_device::cs_write)).bit(6);
 
 	SEGA_315_5296(config, "io60", 32_MHz_XTAL);
-	SEGA_315_5649(config, "io70", 0);
+	SEGA_315_5649(config, "io70");
 
 	EEPROM_93C46_16BIT(config, "ioeeprom"); // AK93C45
 
@@ -6485,14 +6486,14 @@ void model3_state::model3_15(machine_config &config)
 	MCFG_MACHINE_START_OVERRIDE(model3_state,model3_15)
 	MCFG_MACHINE_RESET_OVERRIDE(model3_state,model3_15)
 
-	M3COMM(config, "comm_board", 0);
+	M3COMM(config, "comm_board");
 }
 
 void model3_state::scud(machine_config &config)
 {
 	model3_15(config);
 
-	DSBZ80(config, m_dsbz80, 0);
+	DSBZ80(config, m_dsbz80);
 	m_dsbz80->add_route(0, "speaker", 1.0, 0);
 	m_dsbz80->add_route(1, "speaker", 1.0, 1);
 
@@ -6525,7 +6526,7 @@ void model3_state::model3_20(machine_config &config)
 	MCFG_MACHINE_START_OVERRIDE(model3_state, model3_20)
 	MCFG_MACHINE_RESET_OVERRIDE(model3_state, model3_20)
 
-	M3COMM(config, "comm_board", 0);
+	M3COMM(config, "comm_board");
 }
 
 void model3_state::model3_20_5881(machine_config &config)
@@ -6548,7 +6549,7 @@ void model3_state::model3_21(machine_config &config)
 	MCFG_MACHINE_START_OVERRIDE(model3_state, model3_21)
 	MCFG_MACHINE_RESET_OVERRIDE(model3_state, model3_21)
 
-	M3COMM(config, "comm_board", 0);
+	M3COMM(config, "comm_board");
 }
 
 void model3_state::swtrilgyp(machine_config &config)

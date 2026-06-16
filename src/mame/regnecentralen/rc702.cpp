@@ -709,8 +709,13 @@ void rc702_state::rc702_base(machine_config &config)
 	// gates DRQ between ch2 and ch3 for the 8275's roll function.
 	// See rc700-gensmedet/docs/dma_ch3_8275_roll_function.md.
 	m_dma->out_dack_callback<2>().set(FUNC(rc702_state::dack2_w));
+	// Note: out_dack_callback<1> (FDC) is wired per-variant in
+	// rc702() / rc702mini() / rc703() / rc703maxi() because each
+	// variant uses a different UPD765A clock + floppy geometry.
+	// Upstream's 2026 reorganization moved this to rc702_base; we
+	// keep it per-variant to preserve the multi-machine structure.
 
-	TTL7474(config, m_7474, 0);
+	TTL7474(config, m_7474);
 	m_7474->output_cb().set(FUNC(rc702_state::q_w));
 	m_7474->comp_output_cb().set(FUNC(rc702_state::qbar_w));
 

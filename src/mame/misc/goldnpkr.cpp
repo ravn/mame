@@ -1179,7 +1179,6 @@ public:
 	void init_ped42() ATTR_COLD;
 
 protected:
-	virtual void machine_start() override { m_lamps.resolve(); }
 	virtual void video_start() override ATTR_COLD;
 
 	uint8_t pottnpkr_mux_port_r();
@@ -4789,7 +4788,7 @@ static INPUT_PORTS_START( megadpkr )
 	PORT_BIT( 0xe0, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("IN0-3")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_GAMBLE_SERVICE ) PORT_NAME("Menu")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Menu")
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_UNKNOWN ) // not used?
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_COIN2 ) PORT_NAME("Note")
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_NAME("Credit")
@@ -5290,8 +5289,6 @@ DISCRETE_SOUND_END
 
 MACHINE_START_MEMBER(goldnpkr_state, mondial)
 {
-	m_lamps.resolve();
-
 	uint8_t *ROM = memregion("maincpu")->base();
 	membank("bank1")->configure_entries(0, 2, &ROM[0], 0x4000);
 }
@@ -5766,7 +5763,7 @@ void blitz_state::megadpkr(machine_config &config)
 	m_mcu->portb_w().set(FUNC(blitz_state::mcu_portb_w));
 	m_mcu->portc_w().set(FUNC(blitz_state::mcu_portc_w));
 
-	M48T02(config, "timekpr", 0);
+	M48T02(config, "timekpr");
 
 	PIA6821(config, m_pia[0]);
 	m_pia[0]->readpa_handler().set(FUNC(blitz_state::pottnpkr_mux_port_r));
@@ -12575,7 +12572,7 @@ ROM_START( pokersis )
 
 	ROM_REGION( 0x1800, "gfx1", 0 )
 	ROM_FILL(                 0x0000, 0x1000, 0x0000 )   // filling the R-G bitplanes
-	ROM_COPY( "gfx", 0x14800, 0x1000, 0x0800 )      // text and suppossed 1bpp gfx
+	ROM_COPY( "gfx", 0x14800, 0x1000, 0x0800 )      // text and supposed 1bpp gfx
 
 	ROM_REGION( 0x1800, "gfx2", 0 )
 	ROM_COPY( "gfx", 0x04000, 0x0000, 0x0800 )  // cards gfx, bitplane 1

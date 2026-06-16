@@ -148,6 +148,8 @@
 #include "jaguar.h"
 #include "jagblit.h"
 
+#include "endianness.h"
+
 #define LOG_BLITS           (1U << 1)
 #define LOG_BLITTER_STATS   (1U << 2)
 #define LOG_BLITTER_WRITE   (1U << 3)
@@ -157,7 +159,7 @@
 #define LOG_OBJECT_BRANCH   (1U << 7) // log branch taken (verbose)
 
 #define VERBOSE (LOG_UNHANDLED_BLITS)
-//#define LOG_OUTPUT_FUNC osd_printf_warning
+//#define LOG_OUTPUT_FUNC osd_printf_info
 #include "logmacro.h"
 
 

@@ -12,18 +12,19 @@ VT82C586B PCIC ISA section
 #include "bus/pc_kbd/keyboards.h"
 #include "speaker.h"
 
+#define LOG_IRQ      (1U << 1) // log line state
+
 #define VERBOSE (LOG_GENERAL)
-//#define LOG_OUTPUT_FUNC osd_printf_warning
+//#define LOG_OUTPUT_FUNC osd_printf_info
+
+#define LOGIRQ(...)    LOGMASKED(LOG_IRQ, __VA_ARGS__)
 
 #include "logmacro.h"
 
 DEFINE_DEVICE_TYPE(VT82C586B_ISA, vt82c586b_isa_device, "vt82c586b_isa", "VT82C586B \"PIPC\" PCI-to-ISA bridge")
 
-vt82c586b_isa_device::vt82c586b_isa_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: pci_device(mconfig, VT82C586B_ISA, tag, owner, clock)
-//  , m_smi_callback(*this)
-//  , m_nmi_callback(*this)
-//  , m_stpclk_callback(*this)
+vt82c586b_isa_device::vt82c586b_isa_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock)
+	: pci_device(mconfig, type, tag, owner, clock)
 	, m_host_cpu(*this, finder_base::DUMMY_TAG)
 	, m_pic(*this, "pic%u", 0U)
 	, m_dma(*this, "dma%u", 0U)
@@ -39,6 +40,17 @@ vt82c586b_isa_device::vt82c586b_isa_device(const machine_config &mconfig, const 
 	, m_write_pcirst(*this)
 	, m_boot_state_hook(*this)
 {
+}
+
+vt82c586b_isa_device::vt82c586b_isa_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: vt82c586b_isa_device(mconfig, VT82C586B_ISA, tag, owner, clock)
+{
+	// revisions:
+	// 0*h for regular VT82C586
+	// 2*h for '586A
+	// 3*h for '586B OEM Silicon
+	// 4*h for '586B Production Silicon
+	set_ids(0x11060586, 0x41, 0x060100, 0x00000000);
 }
 
 void vt82c586b_isa_device::device_add_mconfig(machine_config &config)
@@ -121,7 +133,7 @@ void vt82c586b_isa_device::device_add_mconfig(machine_config &config)
 	m_aux_con->out_clock_cb().set(m_keybc, FUNC(ps2_keyboard_controller_device::aux_clk_w));
 	m_aux_con->out_data_cb().set(m_keybc, FUNC(ps2_keyboard_controller_device::aux_data_w));
 
-	ISA16(config, m_isabus, 0);
+	ISA16(config, m_isabus);
 	m_isabus->irq3_callback().set(FUNC(vt82c586b_isa_device::pc_irq3_w));
 	m_isabus->irq4_callback().set(FUNC(vt82c586b_isa_device::pc_irq4_w));
 	m_isabus->irq5_callback().set(FUNC(vt82c586b_isa_device::pc_irq5_w));
@@ -180,6 +192,9 @@ void vt82c586b_isa_device::device_start()
 	save_item(NAME(m_pirqrc));
 	save_item(NAME(m_mirq));
 	save_item(NAME(m_mirq_pin_config));
+
+	save_item(NAME(m_ide_pin_config));
+	save_item(NAME(m_acpi_pin_config));
 }
 
 void vt82c586b_isa_device::device_reset()
@@ -201,6 +216,8 @@ void vt82c586b_isa_device::device_reset()
 	m_dma_control_typef = 0;
 	std::fill(std::begin(m_misc_control), std::end(m_misc_control), 0);
 	m_ide_irq_routing = 0x00 | (1 << 2) | (0 << 0);
+	m_ide_pin_config[0] = 14;
+	m_ide_pin_config[1] = 15;
 	std::fill(std::begin(m_pirqrc), std::end(m_pirqrc), 0);
 	std::fill(std::begin(m_mirq), std::end(m_mirq), 0);
 	m_mirq_pin_config = 0;
@@ -269,9 +286,9 @@ void vt82c586b_isa_device::config_map(address_map &map)
 			LOG("46h: Miscellaneous Control 1 %02x\n", data);
 		})
 	);
-	// bit 5 EISA $4d0/$4d1 enable
-	// bit 3 <reserved> but can be written to
-	// bit 0 PCI reset
+	// --x- ---- EISA $4d0/$4d1 enable
+	// ---- x--- <reserved> but can be written to
+	// ---- ---x PCI reset
 	map(0x47, 0x47).lrw8(
 		NAME([this] () { return m_misc_control[1]; }),
 		NAME([this] (offs_t offset, u8 data) {
@@ -301,13 +318,7 @@ void vt82c586b_isa_device::config_map(address_map &map)
 			// TODO: remap cb for bit 3
 		})
 	);
-	map(0x4a, 0x4a).lrw8(
-		NAME([this] () { return m_ide_irq_routing; }),
-		NAME([this] (offs_t offset, u8 data) {
-			m_ide_irq_routing = data;
-			LOG("4Ah: IDE Interrupt Routing %02x\n", data);
-		})
-	);
+	map(0x4a, 0x4a).rw(FUNC(vt82c586b_isa_device::ide_irq_routing_r), FUNC(vt82c586b_isa_device::ide_irq_routing_w));
 	map(0x4c, 0x4c).lrw8(
 		NAME([this] () { return m_pci_memory_hole_bottom; }),
 		NAME([this] (offs_t offset, u8 data) {
@@ -428,6 +439,21 @@ void vt82c586b_isa_device::config_map(address_map &map)
 	// 0x70 ~ 0x73 Subsystem ID
 }
 
+u8 vt82c586b_isa_device::ide_irq_routing_r(offs_t offset)
+{
+	return m_ide_irq_routing;
+}
+
+void vt82c586b_isa_device::ide_irq_routing_w(offs_t offset, u8 data)
+{
+	m_ide_irq_routing = data;
+	LOG("4Ah: IDE Interrupt Routing %02x\n", data);
+	static const u8 irq_nums[4] = { 14, 15, 10, 11 };
+	m_ide_pin_config[0] = irq_nums[m_ide_irq_routing & 3];
+	m_ide_pin_config[1] = irq_nums[(m_ide_irq_routing >> 2) & 3];
+	LOG("\tIDE Primary IRQ%d Secondary IRQ%d\n", m_ide_pin_config[0], m_ide_pin_config[1]);
+}
+
 void vt82c586b_isa_device::internal_io_map(address_map &map)
 {
 	map(0x0000, 0x001f).rw(m_dma[0], FUNC(am9517a_device::read), FUNC(am9517a_device::write));
@@ -471,7 +497,7 @@ void vt82c586b_isa_device::map_extra(
 	io_space->install_device(0, 0xffff, *this, &vt82c586b_isa_device::internal_io_map);
 
 	// Internal PS/2
-	// TODO: BIT 1 enables internal AUX too
+	// TODO: bit 1 enables internal AUX too
 	if (BIT(m_xd_power_on, 0))
 	{
 		m_isabus->install_device(0x60, 0x60, read8smo_delegate(*m_keybc, FUNC(ps2_keyboard_controller_device::data_r)), write8smo_delegate(*m_keybc, FUNC(ps2_keyboard_controller_device::data_w)));
@@ -825,9 +851,6 @@ void vt82c586b_isa_device::redirect_irq(int irq, int state)
 	{
 	case 0:
 	case 2:
-	case 8:
-	case 13:
-		break;
 	// Claims irq 1 to be selectable vs. other PCI ISAs
 	case 1:
 		m_pic[0]->ir1_w(state);
@@ -847,9 +870,14 @@ void vt82c586b_isa_device::redirect_irq(int irq, int state)
 	case 7:
 		m_pic[0]->ir7_w(state);
 		break;
+	// selectable by SCI irq
+	case 8:
+		m_pic[1]->ir0_w(state);
+		break;
 	case 9:
 		m_pic[1]->ir1_w(state);
 		break;
+	// selectable by SCI irq
 	case 10:
 		m_pic[1]->ir2_w(state);
 		break;
@@ -858,6 +886,9 @@ void vt82c586b_isa_device::redirect_irq(int irq, int state)
 		break;
 	case 12:
 		m_pic[1]->ir4_w(state);
+		break;
+	case 13:
+		m_pic[1]->ir5_w(state);
 		break;
 	case 14:
 		m_pic[1]->ir6_w(state);
@@ -881,7 +912,7 @@ void vt82c586b_isa_device::irq_handler(int line, int state)
 	if(line < 0 || line >= 16)
 		return;
 
-	logerror("irq_handler %d %d\n", line, state);
+	LOGIRQ("irq_handler %d %d\n", line, state);
 	redirect_irq(line, state);
 }
 
@@ -951,3 +982,15 @@ void vt82c586b_isa_device::pc_mirq2_w(int state)
 	redirect_irq(irq, state);
 }
 
+/*
+ * '596 overrides
+ */
+
+DEFINE_DEVICE_TYPE(VT82C596B_ISA, vt82c596b_isa_device, "vt82c596b_isa", "VT82C596B \"PIPC Mobile South\" PCI-to-ISA bridge")
+
+vt82c596b_isa_device::vt82c596b_isa_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: vt82c586b_isa_device(mconfig, VT82C596B_ISA, tag, owner, clock)
+{
+	// Rev. 23 from neomania detlog.txt
+	set_ids(0x11060596, 0x23, 0x060100, 0x00000000);
+}

@@ -79,9 +79,9 @@ public:
 		m_keyboard(*this, "keyboard"),
 		m_snsnd(*this, "snsnd"),
 		m_rtc(*this, "rtc"),
-		m_scsi(*this, "scsi:7:ncr5385"),
+		m_scsi(*this, "ncr5385"),
 		m_vint(*this, "vint"),
-		m_prom(*this, "maincpu"),
+		m_prom(*this, "bootrom"),
 		m_mainram(*this, "mainram"),
 		m_vram(*this, "vram"),
 		m_map(*this, "map", 0x1000, ENDIANNESS_BIG),
@@ -326,7 +326,7 @@ void tek440x_state::physical_map(address_map &map)
 
 	// 700000-71ffff spare 0
 	// 720000-73ffff spare 1
-	map(0x740000, 0x747fff).rom().mirror(0x8000).region("maincpu", 0);
+	map(0x740000, 0x747fff).rom().mirror(0x8000).region("bootrom", 0);
 	map(0x760000, 0x760fff).ram().mirror(0xf000); // debug RAM
 
 	// 780000-79ffff processor board I/O
@@ -440,7 +440,7 @@ void tek440x_state::tek4404(machine_config &config)
 
 	MC146818(config, m_rtc, 32.768_MHz_XTAL);
 
-	NSCSI_BUS(config, "scsi");
+	auto &scsi(NSCSI_BUS(config, "scsi"));
 	// hard disk is a Micropolis 1304 (https://www.micropolis.com/support/hard-drives/1304)
 	// with a Xebec 1401 SASI adapter inside the Mass Storage Unit
 	NSCSI_CONNECTOR(config, "scsi:0", scsi_devices, "harddisk");
@@ -450,13 +450,10 @@ void tek440x_state::tek4404(machine_config &config)
 	NSCSI_CONNECTOR(config, "scsi:4", scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:5", scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:6", scsi_devices, nullptr);
-	NSCSI_CONNECTOR(config, "scsi:7").option_set("ncr5385", NCR5385).clock(40_MHz_XTAL / 4).machine_config(
-		[this](device_t *device)
-		{
-			ncr5385_device &adapter = downcast<ncr5385_device &>(*device);
 
-			adapter.irq().set_inputline(m_maincpu, M68K_IRQ_3);
-		});
+	NCR5385(config, m_scsi, 40_MHz_XTAL / 4);
+	scsi.set_external_device(7, m_scsi);
+	m_scsi->irq().set_inputline(m_maincpu, M68K_IRQ_3);
 
 	rs232_port_device &rs232(RS232_PORT(config, "rs232", default_rs232_devices, nullptr));
 	rs232.rxd_handler().set("aica", FUNC(mos6551_device::write_rxd));
@@ -478,7 +475,7 @@ void tek440x_state::tek4404(machine_config &config)
  *************************************/
 
 ROM_START( tek4404 )
-	ROM_REGION( 0x8000, "maincpu", 0 )
+	ROM_REGION16_BE( 0x8000, "bootrom", 0 )
 	ROM_LOAD16_BYTE( "tek_u158.bin", 0x000000, 0x004000, CRC(9939e660) SHA1(66b4309e93e4ff20c1295dc2ec2a8d6389b2578c) )
 	ROM_LOAD16_BYTE( "tek_u163.bin", 0x000001, 0x004000, CRC(a82dcbb1) SHA1(a7e4545e9ea57619faacc1556fa346b18f870084) )
 

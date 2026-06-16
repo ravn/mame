@@ -607,7 +607,6 @@ void vendetta_state::machine_reset()
 
 	// Z80 _NMI goes low at same time as reset
 	m_audiocpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
-	m_audiocpu->pulse_input_line(INPUT_LINE_RESET, attotime::zero);
 }
 
 void vendetta_state::banking_callback(uint8_t data)
@@ -652,8 +651,8 @@ void vendetta_state::vendetta(machine_config &config)
 	m_k053246->set_config(NORMAL_PLANE_ORDER, -43, 6);
 	m_k053246->set_palette(m_palette);
 
-	K053251(config, m_k053251, 0);
-	K054000(config, m_k054000, 0);
+	K053251(config, m_k053251);
+	K054000(config, m_k054000);
 
 	// sound hardware
 	SPEAKER(config, "speaker", 2).front();

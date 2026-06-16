@@ -24,6 +24,7 @@
 #include "svga_s3.h"
 #include "svga_trident.h"
 #include "svga_tseng.h"
+#include "tiga_spea.h"
 #include "vga.h"
 #include "vga_ati.h"
 
@@ -34,6 +35,7 @@
 // storage (MFM/RLL/ESDI)
 #include "acb2072.h"
 #include "cl_sh260.h"
+#include "dsi32.h"
 #include "hdc.h"
 #include "lrk330.h"
 #include "omti8621.h"
@@ -77,6 +79,7 @@
 #include "sblaster.h"
 #include "ssi2001.h"
 #include "stereo_fx.h"
+#include "wss.h"
 
 // network
 #include "3c503.h"
@@ -137,6 +140,7 @@ void pc_isa8_cards(device_slot_interface &device)
 	device.option_add("xtide", ISA8_XTIDE);
 	device.option_add("side116", ISA8_SIDE116);
 	device.option_add("hdc", ISA8_HDC);
+	device.option_add("dsi32", ISA8_DSI32);
 	device.option_add("adlib", ISA8_ADLIB);
 	device.option_add("hercules", ISA8_HERCULES);
 	device.option_add("gblaster", ISA8_GAME_BLASTER);
@@ -213,6 +217,7 @@ void pc_isa16_cards(device_slot_interface &device)
 	device.option_add("wd90c33_zz", ISA16_WD90C33_ZZ);
 	device.option_add("3c505", ISA16_3C505);
 	device.option_add("mach64", ISA16_SVGA_MACH64);
+	device.option_add("fga_4he", ISA16_FGA4HE);
 	device.option_add("sb16_lle", ISA16_SB16);
 	device.option_add("mcd", ISA16_MCD);
 	device.option_add("sad8852", ISA16_SAD8852);
@@ -231,6 +236,7 @@ void pc_isa16_cards(device_slot_interface &device)
 	device.option_add("omti8621", ISA16_OMTI8621);
 	device.option_add("lrk331", LRK331);
 	device.option_add("hpblp", HPBLP);
+	device.option_add("wss", ISA16_WSS);
 
 	// EISA cards
 	// TODO: move to own block

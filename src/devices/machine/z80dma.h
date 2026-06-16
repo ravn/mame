@@ -49,7 +49,7 @@ class z80dma_device :   public device_t,
 {
 public:
 	// construction/destruction
-	z80dma_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
+	z80dma_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock = 0);
 
 	auto out_busreq_callback() { return m_out_busreq_cb.bind(); }
 	auto out_int_callback() { return m_out_int_cb.bind(); }
@@ -118,14 +118,15 @@ protected:
 	void enable();
 	void disable();
 	u8 num_follow() const noexcept { return m_num_follow; }
-	virtual int is_ready();
+	int is_ready();
 	void interrupt_check();
 	void trigger_interrupt(int level);
-	virtual void do_read();
+	void do_read();
 	void do_write();
 	void do_transfer_write();
 	void do_search();
 	void setup_next_read(int rr);
+	virtual void reset_byte_counter() { m_byte_counter = 0; };
 
 	virtual TIMER_CALLBACK_MEMBER(clock_w);
 
