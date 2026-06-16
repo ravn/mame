@@ -91,7 +91,7 @@ public:
 		, m_pio_b(*this, "piob")
 	{ }
 
-	void rc702_base(machine_config &config);
+	void rc700_base(machine_config &config);
 	void rc702(machine_config &config);
 	void rc702mini(machine_config &config);
 	void rc703(machine_config &config);
@@ -632,7 +632,7 @@ static void rc703_floppies(device_slot_interface &device)
 	device.option_add("525qd", FLOPPY_525_QD);
 }
 
-void rc702_state::rc702_base(machine_config &config)
+void rc702_state::rc700_base(machine_config &config)
 {
 	/* basic machine hardware */
 	Z80(config, m_maincpu, XTAL(8'000'000) / 2);
@@ -694,7 +694,7 @@ void rc702_state::rc702_base(machine_config &config)
 	// Direct keyboard wiring on PIO-A.  generic_keyboard pushes bytes
 	// into kbd_put which latches m_kbd_data and pulses strobe_a; the
 	// PIO's in_pa_callback returns m_kbd_data via kbd_r.
-	generic_keyboard_device &keyboard(GENERIC_KEYBOARD(config, "keyboard", 0));
+	generic_keyboard_device &keyboard(GENERIC_KEYBOARD(config, "keyboard"));
 	keyboard.set_keyboard_callback(FUNC(rc702_state::kbd_put));
 
 	AM9517A(config, m_dma, 8_MHz_XTAL / 2);
@@ -712,7 +712,7 @@ void rc702_state::rc702_base(machine_config &config)
 	// Note: out_dack_callback<1> (FDC) is wired per-variant in
 	// rc702() / rc702mini() / rc703() / rc703maxi() because each
 	// variant uses a different UPD765A clock + floppy geometry.
-	// Upstream's 2026 reorganization moved this to rc702_base; we
+	// Upstream's 2026 reorganization moved this to rc700_base; we
 	// keep it per-variant to preserve the multi-machine structure.
 
 	TTL7474(config, m_7474);
@@ -750,7 +750,7 @@ void rc702_state::rc702_base(machine_config &config)
 
 void rc702_state::rc702(machine_config &config)
 {
-	rc702_base(config);
+	rc700_base(config);
 
 	UPD765A(config, m_fdc, 8_MHz_XTAL, true, true);
 	m_fdc->intrq_wr_callback().set(m_ctc1, FUNC(z80ctc_device::trg3));
@@ -765,7 +765,7 @@ void rc702_state::rc702(machine_config &config)
 
 void rc702_state::rc702mini(machine_config &config)
 {
-	rc702_base(config);
+	rc700_base(config);
 
 	UPD765A(config, m_fdc, 8_MHz_XTAL / 2, true, true);  // 4 MHz for 5.25" mini drives
 	m_fdc->intrq_wr_callback().set(m_ctc1, FUNC(z80ctc_device::trg3));
@@ -780,7 +780,7 @@ void rc702_state::rc702mini(machine_config &config)
 
 void rc702_state::rc703(machine_config &config)
 {
-	rc702_base(config);
+	rc700_base(config);
 
 	UPD765A(config, m_fdc, 8_MHz_XTAL / 2, true, true);  // 4 MHz for 5.25" QD drives
 	m_fdc->intrq_wr_callback().set(m_ctc1, FUNC(z80ctc_device::trg3));
@@ -796,7 +796,7 @@ void rc702_state::rc703(machine_config &config)
 
 void rc702_state::rc703maxi(machine_config &config)
 {
-	rc702_base(config);
+	rc700_base(config);
 
 	UPD765A(config, m_fdc, 8_MHz_XTAL, true, true);  // 8 MHz for 8" drives
 	m_fdc->intrq_wr_callback().set(m_ctc1, FUNC(z80ctc_device::trg3));
