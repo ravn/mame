@@ -3,9 +3,18 @@
 license:BSD-3-Clause
 copyright-holders:MAMEdev Team
 
-RC702 display layout — midpoint PAR (~0.77), 20-pixel border in screen background colour.
-i8275 timing: total raster 756×308 → correct 4:3 PAR=0.543 (608×550) vs square (1120×550).
-Midpoint width: (1120+608)/2 = 864. Border 20px each side → view 904×590.
+RC702 display layout — TRUE RC752 (NEC JB-1201M(A)) geometry, 20-unit border.
+
+The RC752 monitor's active display area is 230 x 165 mm (RCSL 44-RT1981) for the
+8275's 560 x 275 visible raster (80 cols x 7 dots, 25 rows x 11 lines).  That is
+a physical aspect of 230:165 = 46:33 = 1.3939, i.e. pixel aspect ratio 0.685
+(pixels ~1.46x taller than wide).  The screen bounds below encode that aspect
+exactly (736:528 = 46:33); MAME stretches the square-pixel raster to fill it.
+
+Supersedes the earlier "midpoint PAR" compromise, which averaged square pixels
+with a MIS-computed 4:3 target (608x550 = 1.105, not 1.333, and not the real
+230:165 = 1.394).  Now driven by the measured physical panel size, not a guess.
+
 Background colour matches rc702_palette pen 0: rgb(0xC0, 0x60, 0x00).
 -->
 <mamelayout version="2">
@@ -17,12 +26,12 @@ Background colour matches rc702_palette pen 0: rgb(0xC0, 0x60, 0x00).
 	</element>
 
 	<view name="Standard">
-		<bounds x="0" y="0" width="904" height="590" />
+		<bounds x="0" y="0" width="776" height="568" />
 		<element ref="bg">
-			<bounds x="0" y="0" width="904" height="590" />
+			<bounds x="0" y="0" width="776" height="568" />
 		</element>
 		<screen index="0">
-			<bounds x="20" y="20" width="864" height="550" />
+			<bounds x="20" y="20" width="736" height="528" />
 		</screen>
 	</view>
 
