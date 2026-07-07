@@ -55,7 +55,8 @@ rc702_pio_cpnet_bridge_device::rc702_pio_cpnet_bridge_device(const machine_confi
 	m_poll_timer(nullptr),
 	m_input_count(0),
 	m_input_index(0),
-	m_brdy_high(true)  // PIO defaults BRDY high after reset
+	m_brdy_high(true),  // PIO defaults BRDY high after reset
+	m_last_byte(0)
 {
 }
 
@@ -77,6 +78,7 @@ void rc702_pio_cpnet_bridge_device::device_start()
 	save_item(NAME(m_input_count));
 	save_item(NAME(m_input_index));
 	save_item(NAME(m_brdy_high));
+	save_item(NAME(m_last_byte));
 }
 
 
@@ -98,6 +100,7 @@ uint8_t rc702_pio_cpnet_bridge_device::read()
 	if (m_input_index < m_input_count)
 	{
 		uint8_t const b = m_input_buffer[m_input_index++];
+		m_last_byte = b;
 		if (LOG_BRIDGE) logerror(BRIDGE_TS_FMT "read() -> %02x  (FIFO[%u/%u])\n",
 		                         BRIDGE_TS_VAL, b, m_input_index, m_input_count);
 		return b;
@@ -111,16 +114,26 @@ uint8_t rc702_pio_cpnet_bridge_device::read()
 	if (m_input_index < m_input_count)
 	{
 		uint8_t const b = m_input_buffer[m_input_index++];
+		m_last_byte = b;
 		if (LOG_BRIDGE) logerror(BRIDGE_TS_FMT "read() -> %02x  (FIFO[%u/%u], lazy refill)\n",
 		                         BRIDGE_TS_VAL, b, m_input_index, m_input_count);
 		return b;
 	}
 
-	// Truly empty FIFO sentinel — matches the prior cpnet_bridge
-	// contract that callers (cpnos-rom transport_pio.c) rely on for
-	// the first-byte busy-wait in pio_recv_msg.
-	if (LOG_BRIDGE) logerror(BRIDGE_TS_FMT "read() -> ff  (FIFO empty)\n", BRIDGE_TS_VAL);
-	return 0xff;
+	// Truly empty FIFO: return the last real byte, NOT a 0xff sentinel.
+	// This keeps the PB lines 8-bit clean — every value 0x00..0xff is
+	// treated as genuine data, no value is reserved to mean "empty".
+	// The IRQ-driven snios path only forwards STB-triggered reads (a
+	// read() that follows a real strobe pulse) to the Z80 ISR, so a
+	// stale value returned here — from a spurious data_read resample
+	// while STB is low, or a mode-flip callback — is never latched as
+	// data.  The old 0xff sentinel conflated a real 0xff data byte
+	// with "buffer empty" in the earlier polled cpnos-rom path (see
+	// rc700-gensmedet/tasks/session34-direct-pio-stall-rootcause.md);
+	// removing it makes the transport clean for any payload byte.
+	if (LOG_BRIDGE) logerror(BRIDGE_TS_FMT "read() -> %02x  (FIFO empty, stale)\n",
+	                         BRIDGE_TS_VAL, m_last_byte);
+	return m_last_byte;
 }
 
 void rc702_pio_cpnet_bridge_device::write(uint8_t data)

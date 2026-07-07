@@ -81,6 +81,16 @@ private:
 	// to feed and (b) m_brdy_high.  Updated from rdy_w() on the emu
 	// thread.
 	bool m_brdy_high;
+
+	// Last real byte handed to the chip via read().  When read() is
+	// called with an empty FIFO (a spurious sample, e.g. a data_read
+	// resample while STB is low, or a mode-flip callback), we return
+	// THIS instead of a 0xff sentinel — keeping the PB lines 8-bit
+	// clean (all 256 values are valid data; no value is reserved to
+	// mean "empty").  Only STB-triggered reads that follow a real
+	// strobe are forwarded to the Z80 ISR, so returning the stale
+	// last byte here is harmless.  See the read() comment.
+	uint8_t m_last_byte;
 };
 
 DECLARE_DEVICE_TYPE(RC702_PIO_CPNET_BRIDGE, rc702_pio_cpnet_bridge_device)
