@@ -496,8 +496,12 @@ void rc702_state::sem702_data_w(uint8_t data)
 // monitor is orange even when powered off
 void rc702_state::rc702_palette(palette_device &palette) const
 {
-	palette.set_pen_color(0, rgb_t(0xc0, 0x60, 0x00));
-	palette.set_pen_color(1, rgb_t(0xff, 0xb4, 0x00));
+	// Colours sampled from the jbox (Michael Ringgard) RC702 emulator, which
+	// matches the RC752 (NEC JB-1201M(A)) amber monitor: a dark warm-brown
+	// background with a soft amber foreground -- not the earlier bright
+	// saturated orange (which lit the whole screen too hot).
+	palette.set_pen_color(0, rgb_t(0x4f, 0x25, 0x09));  // background: dark brown
+	palette.set_pen_color(1, rgb_t(0xc4, 0x9b, 0x47));  // foreground: soft amber
 }
 
 I8275_DRAW_CHARACTER_MEMBER( rc702_state::display_pixels )
