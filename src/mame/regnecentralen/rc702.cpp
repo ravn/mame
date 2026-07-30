@@ -36,10 +36,15 @@ Z80 PIO modeling note:
   delivery: z80pio_device is a flat device with no per-channel device_t
   subdevices, and the slot mechanism had only been validated against chips that
   expose per-channel subdevices (z80sio_channel, floppy_connector, etc.).
-  The workaround adopted here follows the Einstein topology: PIO-A is wired
-  direct, PIO-B is the slot.  This is sufficient for the RC702 use case since
-  J4 (PIO-A) is the fixed keyboard connector and J3 (PIO-B) is the expansion
-  slot.
+  The workaround adopted here follows the "Einstein topology": PIO-A is wired
+  direct, PIO-B is the slot.  The name comes from the Tatung Einstein TC-01
+  (1984), the only prior MAME driver to use a slot wrapper on a Z80-PIO port:
+  its PIO-A goes direct to a centronics printer while PIO-B is exposed as the
+  einstein_userport_device slot (added 2017, src/mame/tatung/einstein.cpp).
+  That one-direct-one-slot pattern is the only configuration that has been
+  validated with MAME's flat z80pio_device model.  This is sufficient for the
+  RC702 use case since J4 (PIO-A) is the fixed keyboard connector and J3
+  (PIO-B) is the expansion slot.
 - prom1 (line program ROM) is undumped; the region is filled with 0xff to avoid a missing-ROM
   warning.
 
