@@ -480,10 +480,9 @@ void rc702_state::sem702_data_w(uint8_t data)
 // monitor is orange even when powered off
 void rc702_state::rc702_palette(palette_device &palette) const
 {
-	// Colours sampled from the jbox (Michael Ringgard) RC702 emulator, which
+	// Colors sampled from the jbox (Michael Ringgard) RC702 emulator, which
 	// matches the RC752 (NEC JB-1201M(A)) amber monitor: a dark warm-brown
-	// background with a soft amber foreground -- not the earlier bright
-	// saturated orange (which lit the whole screen too hot).
+	// background with a soft amber foreground.
 	palette.set_pen_color(0, rgb_t(0x4f, 0x25, 0x09));  // background: dark brown
 	palette.set_pen_color(1, rgb_t(0xc4, 0x9b, 0x47));  // foreground: soft amber
 }
@@ -531,7 +530,11 @@ I8275_DRAW_CHARACTER_MEMBER( rc702_state::display_pixels )
 	bitmap.pix(y, x++) = palette[BIT(gfx, 6) ? 1 : 0];
 }
 
-// Baud rate generator. All inputs are 0.614MHz.
+// Baud rate generator.  The 0.614 MHz clock is derived from the DRAM
+// refresh oscillator (nominally 20 MHz) via a ÷2 flip-flop chain on
+// MIC 11 that produces a /32.6 divider, yielding ~0.614 MHz.  This
+// feeds all CTC timer inputs.  With the CTC configured for ÷16 baud
+// generation the maximum achievable baud rate is 38400 bps.
 void rc702_state::clock_w(int state)
 {
 	m_ctc1->trg0(state);
@@ -689,12 +692,6 @@ void rc702_state::rc700_base(machine_config &config)
 	m_dma->out_eop_callback().set(FUNC(rc702_state::eop_w)).invert();   // real line is active low, mame has it backwards
 	m_dma->in_memr_callback().set(FUNC(rc702_state::memory_read_byte));
 	m_dma->out_memw_callback().set(FUNC(rc702_state::memory_write_byte));
-	// Both DMA ch2 and ch3 feed the 8275 CRTC.  The hardware supports
-	// split-screen: ch2 carries the first segment and ch3 the second,
-	// with the 74LS74 on MIC 11 switching DRQ routing between them at
-	// the end of ch2's TC pulse.  This capability was not used by the
-	// original RC702 software; all known firmware drives a single
-	// full-screen segment via ch2 only.
 	m_dma->out_iow_callback<2>().set("crtc", FUNC(i8275_device::dack_w));
 	m_dma->out_iow_callback<3>().set("crtc", FUNC(i8275_device::dack_w));
 	// ch2 DACK feeds the 74LS32 OR gate on MIC 11 (alongside the
