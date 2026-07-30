@@ -826,13 +826,17 @@ void rc702_state::rc702sem702(machine_config &config)
 
 /* ROM definition */
 ROM_START( rc702 )
-	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF ) // 2716 (2KB) or 2732 (4KB), jumper-selectable
+	// IC66 socket accepts either a 2716 (2 KB) or a 2732 (4 KB) EPROM.
+	// The exact hardware mechanism for selecting the active size has not
+	// yet been determined.  Region is 0x1000 with ERASEFF fill; dumps
+	// smaller than 4 KB occupy the low half and the remainder is 0xff.
+	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF )
 	ROM_SYSTEM_BIOS(0, "rc702", "RC702")
 	ROMX_LOAD( "roa375.ic66", 0x0000, 0x0800, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084), ROM_BIOS(0))
 	ROM_SYSTEM_BIOS(1, "rc703", "RC703")
-	ROMX_LOAD( "rob357.rom", 0x0000, 0x0800,  CRC(dcf84a48) SHA1(7190d3a898bcbfa212178a4d36afc32bbbc166ef), ROM_BIOS(1))
+	ROMX_LOAD( "rob357.rom",  0x0000, 0x0800, CRC(dcf84a48) SHA1(7190d3a898bcbfa212178a4d36afc32bbbc166ef), ROM_BIOS(1))
 	ROM_SYSTEM_BIOS(2, "rc700", "RC700")
-	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800,  CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(2))
+	ROMX_LOAD( "rob358.rom",  0x0000, 0x0800, CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(2))
 
 	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF ) // 2716 (2KB) or 2732 (4KB), jumper-selectable
 	// line program ROM (ROB388 on MIC705) - undumped prom1.ic65.
@@ -848,7 +852,7 @@ ROM_END
 
 /* RC703 maxi: rob358 (RC700) as default BIOS */
 ROM_START( rc703maxi )
-	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF ) // 2716 (2KB) or 2732 (4KB), jumper-selectable
+	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF ) // IC66: 2716 (2KB) or 2732 (4KB); size selection mechanism TBD
 	ROM_SYSTEM_BIOS(0, "rc700", "RC700")
 	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800,  CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(0))
 	ROM_SYSTEM_BIOS(1, "rc702", "RC702")
