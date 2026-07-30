@@ -202,6 +202,9 @@ void rc702_state::io_map(address_map &map)
 // PROM socket jumpers: select 2716 (2KB) or 2732 (4KB) EPROM.
 // Pin 21 of the EPROM socket is jumpered to either +5V (Vpp for 2716)
 // or address line A11 (for 2732).  See RC702 technical manual page 63.
+// Note: only later motherboard revisions support the 2732 option.
+// Earlier boards, including early production RC702 units, only support
+// the 2716 (2KB).  Default is therefore 2716 for both sockets.
 static INPUT_PORTS_START( rc702_promcfg )
 	PORT_START("PROMCFG")
 	PORT_CONFNAME( 0x01, 0x00, "PROM0 (IC66) Type")
