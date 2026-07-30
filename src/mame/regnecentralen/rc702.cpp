@@ -10,43 +10,27 @@ Undumped prom at IC55 type 74S287 (address decoder for PROM0/PROM1 mapping)
 Keyboard has 8048 and 2758, both undumped.
 
 Machine variants:
-  rc702      - RC702 with 8" DSDD floppy drives (maxi), 8 MHz FDC
-  rc702mini  - RC702 with 5.25" DD floppy drives (mini), 4 MHz FDC
-  rc703      - RC703 with 5.25" QD floppy drives (80-track), 4 MHz FDC
-
+  rc702      - RC702, 8" DSDD (maxi), 8 MHz FDC
+  rc702mini  - RC702, 5.25" DD (mini), 4 MHz FDC
+  rc703      - RC703, 5.25" QD (80-track), 4 MHz FDC
 
 ToDo:
 - Hard drive for RC703, ports 0x60-0x67. Extra CTC on HD board, ports 0x44-0x47
 - Keyboard MCU (8048 + 2758) -- currently using generic_keyboard
 
 PIO peripherals (J3 / J4):
-- PIO-A (J4): keyboard, wired direct (generic_keyboard -> kbd_put -> in_pa_callback).
-- PIO-B (J3): exposed as a configurable slot device via bus/rc702/pio_port/.
-  Default empty (matches factory state -- J3 was an unpopulated expansion
-  connector with no power rail, see RC702 Technical Reference).
-- Note: PIO-B is *not* the printer port; the printer was always on a SIO
-  channel per the hardware reference and the standard CP/M IOBYTE mapping.
+- PIO-A (J4): keyboard, wired direct.
+- PIO-B (J3): configurable slot device (bus/rc702/pio_port/), default empty.
+  J3 was an unpopulated expansion connector. Not the printer port -- the
+  printer was always on a SIO channel.
 
-Z80 PIO modeling note:
-  The RC702 is the first machine in MAME where both ports of a single Z80-PIO
-  are exposed as user-pluggable slot devices.  Earlier drivers either wire both
-  ports directly (e.g. Xerox 820) or wrap only one port in a slot (e.g. the
-  Einstein userport on PIO-B while PIO-A stays direct).  Attempting to make
-  both ports slot devices on the same z80pio_device broke IM2 interrupt
-  delivery: z80pio_device is a flat device with no per-channel device_t
-  subdevices, and the slot mechanism had only been validated against chips that
-  expose per-channel subdevices (z80sio_channel, floppy_connector, etc.).
-  The workaround adopted here follows the "Einstein topology": PIO-A is wired
-  direct, PIO-B is the slot.  The name comes from the Tatung Einstein TC-01
-  (1984), the only prior MAME driver to use a slot wrapper on a Z80-PIO port:
-  its PIO-A goes direct to a centronics printer while PIO-B is exposed as the
-  einstein_userport_device slot (added 2017, src/mame/tatung/einstein.cpp).
-  That one-direct-one-slot pattern is the only configuration that has been
-  validated with MAME's flat z80pio_device model.  This is sufficient for the
-  RC702 use case since J4 (PIO-A) is the fixed keyboard connector and J3
-  (PIO-B) is the expansion slot.
-- prom1 (line program ROM) is undumped; the region is filled with 0xff to avoid a missing-ROM
-  warning.
+Z80 PIO modeling: PIO-A is wired direct and PIO-B is the slot ("Einstein
+topology", after src/mame/tatung/einstein.cpp).  Making both ports of one
+z80pio_device slot devices breaks IM2 interrupt delivery: the flat
+z80pio_device has no per-channel device_t subdevices, and slots have only
+been validated against per-channel-subdevice chips (z80sio_channel etc.).
+
+prom1 (line program ROM) is undumped; region filled with 0xff.
 
 ****************************************************************************************************************/
 
@@ -146,16 +130,11 @@ private:
 	uint16_t m_beepcnt = 0U;
 	bool m_eop = false;
 	bool m_dack1 = false;
-	// Real-line voltage of 8237 DACK2; HIGH (=1) means ch2 inactive.
-	// Fed alongside m_eop into the 74LS32 OR gate on MIC 11 whose output
-	// clocks the 74LS74 that selects between DMA ch2 and ch3 for the
-	// 8275 (roll-function second channel).  See
-	// rc700-gensmedet/docs/dma_ch3_8275_roll_function.md.
+	// 8237 DACK2 real-line voltage; HIGH (=1) means ch2 inactive.  Fed with
+	// m_eop into the 74LS32/74LS74 roll-function logic (see eop_w).
 	bool m_dack2 = true;
-	// SEM702 RAM-based character generator (IC82 swap-in for ROA327).
-	// 128 chars * 16 lines = 2 KB.  Uninitialised at power-on on real
-	// hardware; we fill with 0xFF so an un-programmed boot is visually
-	// obvious (all-dots glyphs).  Programmed via OUT ports 0xD1/0xD2/0xD3.
+	// SEM702 RAM-based character generator (IC82 swap-in for ROA327),
+	// 128 chars * 16 lines = 2 KB, programmed via ports 0xD1/0xD2/0xD3.
 	uint8_t m_sem702_ram[0x800] = {};
 	uint8_t m_sem702_char_latch = 0U;
 	uint8_t m_sem702_dot_latch = 0U;
@@ -204,22 +183,17 @@ void rc702_state::io_map(address_map &map)
 	map(0x14, 0x17).portr("DSW").w(FUNC(rc702_state::port14_w)); // motors
 	map(0x18, 0x1b).lw8(NAME([this] (u8 data) { m_bank1->set_entry(0); m_bank1h->set_entry(0); m_bank2->set_entry(0); m_bank2h->set_entry(0); })); // replace roms with ram
 	map(0x1c, 0x1f).w(FUNC(rc702_state::port1c_w)); // sound
-	// SEM702 RAM-based character generator (IC82).  Handlers are wired
-	// on every rc702 variant but only act when m_has_sem702 is set --
-	// matching real hardware where these ports go nowhere on machines
-	// with the original ROA327 fixed-font ROM installed.
+	// SEM702 chargen (IC82): handlers wired on every variant but only act
+	// when m_has_sem702 is set (ports go nowhere with a ROA327 ROM fitted).
 	map(0xd1, 0xd1).w(FUNC(rc702_state::sem702_char_w));
 	map(0xd2, 0xd2).w(FUNC(rc702_state::sem702_dot_w));
 	map(0xd3, 0xd3).w(FUNC(rc702_state::sem702_data_w));
 	map(0xf0, 0xff).rw(m_dma, FUNC(am9517a_device::read), FUNC(am9517a_device::write));
 }
 
-// PROM socket jumpers: select 2716 (2KB) or 2732 (4KB) EPROM.
-// Pin 21 of the EPROM socket is jumpered to either +5V (Vpp for 2716)
-// or address line A11 (for 2732).  See RC702 technical manual page 63.
-// Note: only later motherboard revisions support the 2732 option.
-// Earlier boards, including early production RC702 units, only support
-// the 2716 (2KB).  Default is therefore 2716 for both sockets.
+// PROM socket type: 2716 (2KB) or 2732 (4KB), selected by a socket pin-21
+// jumper (+5V Vpp vs A11).  The 2732 option is only on later board
+// revisions.  (RC702 tech manual p.63.)
 static INPUT_PORTS_START( rc702_promcfg )
 	PORT_START("PROMCFG")
 	PORT_CONFNAME( 0x01, 0x00, "PROM0 (IC66) Type")
@@ -346,12 +320,9 @@ void rc702_state::machine_start()
 
 	if (m_has_sem702)
 	{
-		// Power-on SEM702 RAM replacing ROA327 is undefined.  Initialise to 0xFF so an
-		// un-programmed boot shows solid blocks (loudly "no font loaded")
-		// rather than blank screen that could be mistaken for a working
-		// display.  Software is expected to overwrite this before
-		// enabling the CRT.  Modern versions of PROM0 autoloader program this
-		// to the ROA327 font data at boot, but original versions do not.
+		// Power-on SEM702 RAM is undefined; fill with 0xFF so an unprogrammed
+		// boot shows solid blocks rather than a blank (working-looking) screen.
+		// Software must load a font before enabling the CRT.
 		std::memset(m_sem702_ram, 0xff, sizeof(m_sem702_ram));
 		save_item(NAME(m_sem702_ram));
 		save_item(NAME(m_sem702_char_latch));
@@ -406,11 +377,10 @@ void rc702_state::eop_w(int state)
 	else
 		m_fdc->tc_w(0);
 
-	// 74LS32 OR gate on MIC 11: inputs = /DACK2 + /TC (real-line voltages,
-	// active-low).  Output is LOW only when both are simultaneously active;
-	// rising edge at end of TC pulse clocks the 74LS74 with D=1, switching
-	// CRTC DRQ routing from ch2 to ch3 (the "roll function" -- see
-	// rc700-gensmedet/docs/dma_ch3_8275_roll_function.md).
+	// 74LS32 OR gate (MIC 11): inputs /DACK2 + /TC (active-low).  Rising edge
+	// at end of TC clocks the 74LS74 (D=1), switching CRTC DRQ routing from
+	// ch2 to ch3 -- the "roll function".  See
+	// https://github.com/ravn/rc700-gensmedet/blob/main/docs/dma_ch3_8275_roll_function.md
 	m_7474->clock_w(m_dack2 || m_eop);
 }
 
@@ -442,12 +412,10 @@ void rc702_state::dack2_w(int state)
 
 void rc702_state::port14_w(uint8_t data)
 {
-	// Mini floppy motor control: bit 0 = 1 starts motor, 0 stops it.
-	// Maxi (8") drives have always-spinning motors so mon_w() is a no-op.
-	// Do NOT call set_floppy() here -- the FDC connector already binds flopi[0]
-	// during device_start().  Calling set_floppy() would assign the same device
-	// to all 4 internal FDC drive slots, causing 4 spurious ready-change
-	// interrupts on a single drive event and deadlocking the boot PROM.
+	// Mini floppy motor: bit 0 = 1 starts, 0 stops (no-op on always-spinning
+	// 8" maxi drives).  Do NOT call set_floppy() -- the connector already binds
+	// flopi[0]; set_floppy() would bind it to all 4 slots and deadlock the PROM
+	// with 4 spurious ready-change interrupts per drive event.
 	floppy_image_device *floppy = m_floppy0->get_device();
 	if (floppy)
 		floppy->mon_w(!BIT(data, 0));
@@ -459,20 +427,11 @@ void rc702_state::port1c_w(uint8_t data)
 	m_beepcnt = 0x3000;
 }
 
-// SEM702 character generator: writes are accepted only when the variant
-// flagged m_has_sem702.  This matches real hardware where ports
-// 0xD1/0xD2/0xD3 land on a SEM702 RAM board fitted in IC82, and go
-// nowhere on machines that still have the ROA327 font ROM there.
-//
-// Modelled as three pure latches with no side effects: 0xD1 latches the
-// 7-bit character address (ACHAR), 0xD2 the 4-bit line address (ALINE),
-// 0xD3 writes RAM[(ACHAR << 4) | ALINE].  Real SEM702 hardware behaviour
-// is not yet observed; both software sources we have (autoload's
-// define_sextants and the Comal80 example in docs/RC702tech.txt) set
-// ALINE explicitly before every byte, so we have no evidence of any
-// auto-increment.  Keeping MAME's model strict avoids letting future
-// software accidentally rely on side effects that may not exist on the
-// physical board.
+// SEM702 chargen (IC82), only active when m_has_sem702.  Three pure latches:
+// 0xD1 = 7-bit char address (ACHAR), 0xD2 = 4-bit line address (ALINE),
+// 0xD3 writes RAM[(ACHAR << 4) | ALINE].  No auto-increment is modelled --
+// all known software sets ALINE before every byte, so real behaviour is
+// unobserved and the strict model avoids relying on side effects.
 void rc702_state::sem702_char_w(uint8_t data)
 {
 	if (!m_has_sem702) return;
@@ -495,9 +454,8 @@ void rc702_state::sem702_data_w(uint8_t data)
 // monitor is orange even when powered off
 void rc702_state::rc702_palette(palette_device &palette) const
 {
-	// Colors sampled from the jbox (Michael Ringgard) RC702 emulator, which
-	// matches the RC752 (NEC JB-1201M(A)) amber monitor: a dark warm-brown
-	// background with a soft amber foreground.
+	// RC752 (NEC JB-1201M(A)) amber monitor: dark warm-brown background, soft
+	// amber foreground.  Colors sampled from the jbox (Ringgaard) emulator.
 	palette.set_pen_color(0, rgb_t(0x4f, 0x25, 0x09));  // background: dark brown
 	palette.set_pen_color(1, rgb_t(0xc4, 0x9b, 0x47));  // foreground: soft amber
 }
@@ -545,11 +503,9 @@ I8275_DRAW_CHARACTER_MEMBER( rc702_state::display_pixels )
 	bitmap.pix(y, x++) = palette[BIT(gfx, 6) ? 1 : 0];
 }
 
-// Baud rate generator.  The 0.614 MHz clock is derived from the DRAM
-// refresh oscillator (nominally 20 MHz) via a ÷2 flip-flop chain on
-// MIC 11 that produces a /32.6 divider, yielding ~0.614 MHz.  This
-// feeds all CTC timer inputs.  With the CTC configured for ÷16 baud
-// generation the maximum achievable baud rate is 38400 bps.
+// Baud rate generator.  The 0.614 MHz CTC clock is derived from the ~20 MHz
+// DRAM refresh oscillator by a /32.6 divide chain on MIC 11.  With the CTC
+// in /16 mode the maximum baud rate is 38400 bps.
 void rc702_state::clock_w(int state)
 {
 	m_ctc1->trg0(state);
@@ -656,28 +612,20 @@ void rc702_state::rc700_base(machine_config &config)
 
 	Z80PIO(config, m_pio, 8_MHz_XTAL / 2);
 	m_pio->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
-	// PIO-A: keyboard wired direct (no slot wrapper) -- Einstein topology.
-	// See ravn/mame#6 for why both halves of one Z80-PIO can't both be
-	// slot devices: MAME's z80pio_device is flat (no per-channel
-	// device_t subdevices), and the slot mechanism has only ever been
-	// validated against per-channel-subdevice chips like Z80-SIO.
+	// PIO-A: keyboard, wired direct (see Einstein-topology note at top).
 	m_pio->in_pa_callback().set(FUNC(rc702_state::kbd_r));
-	// PIO-B: configurable slot device.  Default empty (matches factory
-	// state of the J3 expansion connector).
+	// PIO-B: configurable slot device, default empty (J3 expansion connector).
 	m_pio->in_pb_callback().set(m_pio_b, FUNC(rc702_pio_port_device::read));
 	m_pio->out_pb_callback().set(m_pio_b, FUNC(rc702_pio_port_device::write));
 	m_pio->out_brdy_callback().set(m_pio_b, FUNC(rc702_pio_port_device::rdy_w));
 
-	// PIO-B slot -- out_strobe_handler wires back into the chip's strobe
-	// input so cards can pulse STB.  No clock arg -- the 3-arg device
-	// constructor is the one that registers the card option list
-	// (mirrors the EINSTEIN_USERPORT pattern in src/mame/tatung/einstein.cpp).
+	// PIO-B slot: out_strobe_handler lets cards pulse the chip's STB input.
+	// The 3-arg (no-clock) ctor registers the card list, mirroring
+	// EINSTEIN_USERPORT in src/mame/tatung/einstein.cpp.
 	RC702_PIO_PORT(config, m_pio_b);
 	m_pio_b->out_strobe_handler().set(m_pio, FUNC(z80pio_device::strobe_b));
 
-	// Direct keyboard wiring on PIO-A.  generic_keyboard pushes bytes
-	// into kbd_put which latches m_kbd_data and pulses strobe_a; the
-	// PIO's in_pa_callback returns m_kbd_data via kbd_r.
+	// generic_keyboard -> kbd_put latches m_kbd_data and pulses strobe_a.
 	generic_keyboard_device &keyboard(GENERIC_KEYBOARD(config, "keyboard"));
 	keyboard.set_keyboard_callback(FUNC(rc702_state::kbd_put));
 
@@ -688,16 +636,10 @@ void rc702_state::rc700_base(machine_config &config)
 	m_dma->out_memw_callback().set(FUNC(rc702_state::memory_write_byte));
 	m_dma->out_iow_callback<2>().set("crtc", FUNC(i8275_device::dack_w));
 	m_dma->out_iow_callback<3>().set("crtc", FUNC(i8275_device::dack_w));
-	// ch2 DACK feeds the 74LS32 OR gate on MIC 11 (alongside the
-	// 8237's TC/EOP output) -- the OR gate clocks the 74LS74 that
-	// gates DRQ between ch2 and ch3 for the 8275's roll function.
-	// See rc700-gensmedet/docs/dma_ch3_8275_roll_function.md.
+	// ch2 DACK feeds the roll-function logic (see eop_w).  out_dack_callback<1>
+	// (FDC) is wired per-variant in add_fdc_dma() since each variant uses a
+	// different UPD765A clock and floppy geometry.
 	m_dma->out_dack_callback<2>().set(FUNC(rc702_state::dack2_w));
-	// Note: out_dack_callback<1> (FDC) is wired per-variant in
-	// rc702() / rc702mini() / rc703() because each
-	// variant uses a different UPD765A clock + floppy geometry.
-	// Upstream's 2026 reorganization moved this to rc700_base; we
-	// keep it per-variant to preserve the multi-machine structure.
 
 	TTL7474(config, m_7474);
 	m_7474->output_cb().set(FUNC(rc702_state::q_w));
@@ -706,12 +648,8 @@ void rc702_state::rc700_base(machine_config &config)
 	/* video hardware */
 	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
 	screen.set_refresh_hz(50);
-	// 80 chars * 7 px/char = 560 visible columns.  Previous values
-	// (272*2 = 544) clipped roughly the last 2 chars on every row --
-	// column 80 was off-screen in both live view and -aviwrite captures.
-	// Layout file (rc702.lay) targets 608 PAR-correct cols including
-	// overscan; 560 is the minimum that covers all 80 chars without
-	// horizontal blanking spilling into the displayable area.
+	// 80 chars * 7 px = 560 visible columns (the minimum that shows all 80
+	// chars; 544 clipped the last ~2 chars per row).
 	screen.set_size(560, 200+4*8);
 	screen.set_visarea(0, 559, 0, 199);
 	screen.set_screen_update("crtc", FUNC(i8275_device::screen_update));
@@ -769,12 +707,9 @@ void rc702_state::rc703(machine_config &config)
 	// TODO: Hard disk ports 0x60-0x67, CTC2 ports 0x44-0x47
 }
 
-// RC702 8" variant with SEM702 RAM-based chargen board fitted in IC82.
-// Identical to rc702 (same FDC, floppies, etc.) except the upper 2 KB of
-// the "chargen" region is RAM that the CPU programmes via ports
-// 0xD1/0xD2/0xD3.  Selected at boot by display_pixels() reading from
-// m_sem702_ram when GPA0 is set; m_has_sem702 distinguishes the variant
-// at run time.
+// RC702 8" with a SEM702 RAM chargen board in IC82: identical to rc702 but
+// the ROA327 half of the chargen space is RAM (ports 0xD1/0xD2/0xD3).
+// m_has_sem702 routes display_pixels() to m_sem702_ram at run time.
 void rc702_state::rc702sem702(machine_config &config)
 {
 	rc702(config);
@@ -784,10 +719,8 @@ void rc702_state::rc702sem702(machine_config &config)
 
 /* ROM definition */
 ROM_START( rc702 )
-	// IC66 socket accepts either a 2716 (2 KB) or a 2732 (4 KB) EPROM.
-	// The exact hardware mechanism for selecting the active size has not
-	// yet been determined.  Region is 0x1000 with ERASEFF fill; dumps
-	// smaller than 4 KB occupy the low half and the remainder is 0xff.
+	// IC66: 2716 (2KB) or 2732 (4KB) EPROM.  Region is 0x1000 with ERASEFF;
+	// a 2KB dump fills the low half and the rest stays 0xff.
 	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF )
 	ROM_SYSTEM_BIOS(0, "rc702", "RC702")
 	ROMX_LOAD( "roa375.ic66", 0x0000, 0x0800, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084), ROM_BIOS(0))
@@ -796,11 +729,9 @@ ROM_START( rc702 )
 	ROM_SYSTEM_BIOS(2, "rc700", "RC700")
 	ROMX_LOAD( "rob358.rom",  0x0000, 0x0800, CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(2))
 
-	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF ) // 2716 (2KB) or 2732 (4KB), jumper-selectable
-	// line program ROM (ROB388 on MIC705) - undumped prom1.ic65.
-	// Optional load: drop a prom1.ic65 file into the rc702 rom path to
-	// use a user-supplied image (e.g., CP/NOS resident helpers).  When
-	// the file is absent, ROMREGION_ERASEFF keeps the original 0xFF fill.
+	// IC65 line-program ROM (ROB388 on MIC705), undumped.  Optional: drop a
+	// prom1.ic65 into the rom path to supply one; otherwise stays 0xff.
+	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF )
 	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
 
 	ROM_REGION( 0x1000, "chargen", 0 )
@@ -813,11 +744,8 @@ ROM_END
 
 /* Driver */
 
-// rc702sem702 shares rc702's ROM set.  The SEM702 board replaces the
-// ROA327 semi-graphics ROM in IC82 with RAM, but the driver still loads
-// roa327.rom into the upper half of the "chargen" region; on this variant
-// display_pixels() reads m_sem702_ram instead of that ROM for GPA0=1
-// character codes, so the loaded ROA327 data is simply never used.
+// All variants share rc702's ROM set.  rc702sem702 still loads roa327.rom
+// but ignores it (display_pixels reads m_sem702_ram instead).
 #define rom_rc702mini    rom_rc702
 #define rom_rc703        rom_rc702
 #define rom_rc702sem702  rom_rc702
