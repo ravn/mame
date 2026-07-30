@@ -590,12 +590,12 @@ void rc702_state::rc700_base(machine_config &config)
 	m_rs232a->cts_handler().set("sio1", FUNC(z80sio_device::ctsa_w));
 	m_rs232a->dcd_handler().set("sio1", FUNC(z80sio_device::dcda_w));
 
-	// SIO-B (J2): console/terminal port.
-	// No baud-rate default is set here; the firmware programs the CTC
-	// baud generator at cold boot.  If connecting a terminal or using
-	// software that relies on SIO-B (e.g. CP/NET over SIO), configure
-	// the null_modem slot to match the firmware's baud rate (typically
-	// 38400 8-N-1) in MAME's slot options.
+	// SIO-B (J2): traditionally a printer port.  Here it is wired to a
+	// null_modem so the guest can talk to an MP/M server running on the
+	// host -- CP/NET traffic can go over either this SIO channel or PIO-B.
+	// No baud-rate default is set; the firmware programs the CTC baud
+	// generator at cold boot, so match the null_modem slot to the firmware
+	// rate (typically 38400 8-N-1) in MAME's slot options.
 	RS232_PORT(config, m_rs232b, default_rs232_devices, "null_modem");
 	m_rs232b->rxd_handler().set("sio1", FUNC(z80sio_device::rxb_w));
 	m_rs232b->cts_handler().set("sio1", FUNC(z80sio_device::ctsb_w));
