@@ -17,16 +17,16 @@ Machine variants:
 
 ToDo:
 - Hard drive for RC703, ports 0x60-0x67. Extra CTC on HD board, ports 0x44-0x47
-- Keyboard MCU (8048 + 2758) — currently using generic_keyboard
+- Keyboard MCU (8048 + 2758) -- currently using generic_keyboard
 
 PIO peripherals (J3 / J4):
 - PIO-A (J4): keyboard, wired direct (generic_keyboard -> kbd_put -> in_pa_callback).
-  Originally a slot device too — reverted to direct wiring as a workaround for
+  Originally a slot device too -- reverted to direct wiring as a workaround for
   ravn/mame#6 (two slot devices on a single Z80-PIO chip break IM2 IRQ delivery
   in MAME's flat z80pio_device model).  Matches Einstein's proven topology
   (Port A direct, Port B via slot).
 - PIO-B (J3): exposed as a configurable slot device via bus/rc702/pio_port/.
-  Default empty (matches factory state — J3 was an unpopulated expansion
+  Default empty (matches factory state -- J3 was an unpopulated expansion
   connector with no power rail, see RC702 Technical Reference).
 - Note: PIO-B is *not* the printer port; the printer was always on a SIO
   channel per the hardware reference and the standard CP/M IOBYTE mapping.
@@ -282,8 +282,8 @@ void rc702_state::machine_reset()
 	m_bank2->set_entry(1);
 
 	// PROM upper halves depend on jumper setting:
-	// 2716 (2KB): A11 not connected — upper half mirrors lower half
-	// 2732 (4KB): A11 active — upper half is distinct ROM data
+	// 2716 (2KB): A11 not connected -- upper half mirrors lower half
+	// 2732 (4KB): A11 active -- upper half is distinct ROM data
 	uint8_t promcfg = ioport("PROMCFG")->read();
 	m_bank1h->set_entry(BIT(promcfg, 0) ? 2 : 1);  // 4K: ROM+0x800, 2K: mirror
 	m_bank2h->set_entry(BIT(promcfg, 1) ? 2 : 1);  // 4K: ROM+0x800, 2K: mirror
@@ -394,7 +394,7 @@ void rc702_state::eop_w(int state)
 	// 74LS32 OR gate on MIC 11: inputs = /DACK2 + /TC (real-line voltages,
 	// active-low).  Output is LOW only when both are simultaneously active;
 	// rising edge at end of TC pulse clocks the 74LS74 with D=1, switching
-	// CRTC DRQ routing from ch2 to ch3 (the "roll function" — see
+	// CRTC DRQ routing from ch2 to ch3 (the "roll function" -- see
 	// rc700-gensmedet/docs/dma_ch3_8275_roll_function.md).
 	m_7474->clock_w(m_dack2 || m_eop);
 }
@@ -429,7 +429,7 @@ void rc702_state::port14_w(uint8_t data)
 {
 	// Mini floppy motor control: bit 0 = 1 starts motor, 0 stops it.
 	// Maxi (8") drives have always-spinning motors so mon_w() is a no-op.
-	// Do NOT call set_floppy() here — the FDC connector already binds flopi[0]
+	// Do NOT call set_floppy() here -- the FDC connector already binds flopi[0]
 	// during device_start().  Calling set_floppy() would assign the same device
 	// to all 4 internal FDC drive slots, causing 4 spurious ready-change
 	// interrupts on a single drive event and deadlocking the boot PROM.
@@ -662,7 +662,7 @@ void rc702_state::rc700_base(machine_config &config)
 
 	Z80PIO(config, m_pio, 8_MHz_XTAL / 2);
 	m_pio->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
-	// PIO-A: keyboard wired direct (no slot wrapper) — Einstein topology.
+	// PIO-A: keyboard wired direct (no slot wrapper) -- Einstein topology.
 	// See ravn/mame#6 for why both halves of one Z80-PIO can't both be
 	// slot devices: MAME's z80pio_device is flat (no per-channel
 	// device_t subdevices), and the slot mechanism has only ever been
@@ -674,8 +674,8 @@ void rc702_state::rc700_base(machine_config &config)
 	m_pio->out_pb_callback().set(m_pio_b, FUNC(rc702_pio_port_device::write));
 	m_pio->out_brdy_callback().set(m_pio_b, FUNC(rc702_pio_port_device::rdy_w));
 
-	// PIO-B slot — out_strobe_handler wires back into the chip's strobe
-	// input so cards can pulse STB.  No clock arg — the 3-arg device
+	// PIO-B slot -- out_strobe_handler wires back into the chip's strobe
+	// input so cards can pulse STB.  No clock arg -- the 3-arg device
 	// constructor is the one that registers the card option list
 	// (mirrors the EINSTEIN_USERPORT pattern in src/mame/tatung/einstein.cpp).
 	RC702_PIO_PORT(config, m_pio_b);
