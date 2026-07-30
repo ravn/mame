@@ -808,32 +808,19 @@ ROM_START( rc702 )
 	ROM_LOAD( "roa327.rom", 0x0800, 0x0800, CRC(bed7ddb0) SHA1(201ae9e4ac3812577244b9c9044fadd04fb2b82f) ) // semi_gfx
 ROM_END
 
-/* RC702 8" with SEM702 RAM-based chargen in IC82.  ROA296 still occupies
- * the lower half of the chargen region; the upper half (where ROA327
- * lives on stock hardware) is replaced at run time by m_sem702_ram and
- * the static ROM contents here are never read on this variant. */
-ROM_START( rc702sem702 )
-	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF )
-	ROM_SYSTEM_BIOS(0, "rc702", "RC702")
-	ROMX_LOAD( "roa375.ic66", 0x0000, 0x0800, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084), ROM_BIOS(0))
-
-	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF )
-	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
-
-	ROM_REGION( 0x1000, "chargen", ROMREGION_ERASEFF )
-	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) )
-	// IC82 = SEM702 RAM board, not a ROA327 ROM.  Upper half of "chargen"
-	// stays as 0xFF (unused) -- display_pixels reads m_sem702_ram for
-	// GPA0=1 character codes on this variant.
-ROM_END
-
 } // anonymous namespace
 
 
 /* Driver */
 
-#define rom_rc702mini  rom_rc702
-#define rom_rc703      rom_rc702
+// rc702sem702 shares rc702's ROM set.  The SEM702 board replaces the
+// ROA327 semi-graphics ROM in IC82 with RAM, but the driver still loads
+// roa327.rom into the upper half of the "chargen" region; on this variant
+// display_pixels() reads m_sem702_ram instead of that ROM for GPA0=1
+// character codes, so the loaded ROA327 data is simply never used.
+#define rom_rc702mini    rom_rc702
+#define rom_rc703        rom_rc702
+#define rom_rc702sem702  rom_rc702
 
 //    YEAR  NAME         PARENT  COMPAT  MACHINE      INPUT        CLASS        INIT        COMPANY           FULLNAME                          FLAGS
 COMP( 1979, rc702,       0,      0,      rc702,       rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo (8\")",             MACHINE_SUPPORTS_SAVE )
