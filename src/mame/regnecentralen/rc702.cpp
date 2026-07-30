@@ -625,11 +625,14 @@ void rc702_state::rc700_base(machine_config &config)
 	m_dma->out_eop_callback().set(FUNC(rc702_state::eop_w)).invert();   // real line is active low, mame has it backwards
 	m_dma->in_memr_callback().set(FUNC(rc702_state::memory_read_byte));
 	m_dma->out_memw_callback().set(FUNC(rc702_state::memory_write_byte));
+	// The 8275 can be fed from DMA ch2 then ch3 in sequence (the "roll
+	// function"), allowing a split screen; the 74LS74 hands DRQ from ch2 to
+	// ch3 at ch2's TC (see eop_w).  No known RC702 software uses this -- all
+	// firmware drives one full-screen segment via ch2.
 	m_dma->out_iow_callback<2>().set("crtc", FUNC(i8275_device::dack_w));
 	m_dma->out_iow_callback<3>().set("crtc", FUNC(i8275_device::dack_w));
-	// ch2 DACK feeds the roll-function logic (see eop_w).  out_dack_callback<1>
-	// (FDC) is wired per-variant in add_fdc_dma() since each variant uses a
-	// different UPD765A clock and floppy geometry.
+	// out_dack_callback<1> (FDC) is wired per-variant in add_fdc_dma() since
+	// each variant uses a different UPD765A clock and floppy geometry.
 	m_dma->out_dack_callback<2>().set(FUNC(rc702_state::dack2_w));
 
 	TTL7474(config, m_7474);
