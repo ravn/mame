@@ -108,7 +108,6 @@ public:
 	void rc702(machine_config &config);
 	void rc702mini(machine_config &config);
 	void rc703(machine_config &config);
-
 	void rc702sem702(machine_config &config);
 
 protected:
@@ -116,6 +115,7 @@ protected:
 	virtual void machine_reset() override ATTR_COLD;
 
 private:
+	void add_fdc_dma(machine_config &config);
 	uint8_t memory_read_byte(offs_t offset);
 	void memory_write_byte(offs_t offset, uint8_t data);
 	void port14_w(uint8_t data);
@@ -732,17 +732,20 @@ void rc702_state::rc700_base(machine_config &config)
 	BEEP(config, m_beep, 1000).add_route(ALL_OUTPUTS, "mono", 0.50);
 }
 
-void rc702_state::rc702(machine_config &config)
+void rc702_state::add_fdc_dma(machine_config &config)
 {
-	rc700_base(config);
-
-	UPD765A(config, m_fdc, 8_MHz_XTAL, true, true);
 	m_fdc->intrq_wr_callback().set(m_ctc1, FUNC(z80ctc_device::trg3));
 	m_fdc->drq_wr_callback().set(m_dma, FUNC(am9517a_device::dreq1_w));
 	m_dma->in_ior_callback<1>().set(m_fdc, FUNC(upd765a_device::dma_r));
 	m_dma->out_iow_callback<1>().set(m_fdc, FUNC(upd765a_device::dma_w));
 	m_dma->out_dack_callback<1>().set(FUNC(rc702_state::dack1_w));
+}
 
+void rc702_state::rc702(machine_config &config)
+{
+	rc700_base(config);
+	UPD765A(config, m_fdc, 8_MHz_XTAL, true, true);
+	add_fdc_dma(config);
 	FLOPPY_CONNECTOR(config, "fdc:0", rc702_floppies, "8dsdd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
 	FLOPPY_CONNECTOR(config, "fdc:1", rc702_floppies, "8dsdd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
 }
@@ -750,29 +753,17 @@ void rc702_state::rc702(machine_config &config)
 void rc702_state::rc702mini(machine_config &config)
 {
 	rc700_base(config);
-
-	UPD765A(config, m_fdc, 8_MHz_XTAL / 2, true, true);  // 4 MHz for 5.25" mini drives
-	m_fdc->intrq_wr_callback().set(m_ctc1, FUNC(z80ctc_device::trg3));
-	m_fdc->drq_wr_callback().set(m_dma, FUNC(am9517a_device::dreq1_w));
-	m_dma->in_ior_callback<1>().set(m_fdc, FUNC(upd765a_device::dma_r));
-	m_dma->out_iow_callback<1>().set(m_fdc, FUNC(upd765a_device::dma_w));
-	m_dma->out_dack_callback<1>().set(FUNC(rc702_state::dack1_w));
-
+	UPD765A(config, m_fdc, 8_MHz_XTAL / 2, true, true);  // 4 MHz for 5.25" drives
+	add_fdc_dma(config);
 	FLOPPY_CONNECTOR(config, "fdc:0", rc702mini_floppies, "525dd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
 	FLOPPY_CONNECTOR(config, "fdc:1", rc702mini_floppies, "525dd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
 }
 
 void rc702_state::rc703(machine_config &config)
 {
-	rc700_base(config);
-
-	UPD765A(config, m_fdc, 8_MHz_XTAL / 2, true, true);  // 4 MHz for 5.25" QD drives
-	m_fdc->intrq_wr_callback().set(m_ctc1, FUNC(z80ctc_device::trg3));
-	m_fdc->drq_wr_callback().set(m_dma, FUNC(am9517a_device::dreq1_w));
-	m_dma->in_ior_callback<1>().set(m_fdc, FUNC(upd765a_device::dma_r));
-	m_dma->out_iow_callback<1>().set(m_fdc, FUNC(upd765a_device::dma_w));
-	m_dma->out_dack_callback<1>().set(FUNC(rc702_state::dack1_w));
-
+	rc702mini(config);  // same 4 MHz FDC clock and DMA wiring
+	config.device_remove("fdc:0");
+	config.device_remove("fdc:1");
 	FLOPPY_CONNECTOR(config, "fdc:0", rc703_floppies, "525qd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
 	FLOPPY_CONNECTOR(config, "fdc:1", rc703_floppies, "525qd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
 	// TODO: Hard disk ports 0x60-0x67, CTC2 ports 0x44-0x47
