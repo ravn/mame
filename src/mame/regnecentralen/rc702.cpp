@@ -13,7 +13,7 @@ Machine variants:
   rc702      - RC702 with 8" DSDD floppy drives (maxi), 8 MHz FDC
   rc702mini  - RC702 with 5.25" DD floppy drives (mini), 4 MHz FDC
   rc703      - RC703 with 5.25" QD floppy drives (80-track), 4 MHz FDC
-  rc703maxi  - RC703 with 8" DSDD floppy drives (maxi), 8 MHz FDC
+
 
 ToDo:
 - Hard drive for RC703, ports 0x60-0x67. Extra CTC on HD board, ports 0x44-0x47
@@ -93,7 +93,7 @@ public:
 	void rc702(machine_config &config);
 	void rc702mini(machine_config &config);
 	void rc703(machine_config &config);
-	void rc703maxi(machine_config &config);
+
 	void rc702sem702(machine_config &config);
 
 protected:
@@ -711,7 +711,7 @@ void rc702_state::rc700_base(machine_config &config)
 	// See rc700-gensmedet/docs/dma_ch3_8275_roll_function.md.
 	m_dma->out_dack_callback<2>().set(FUNC(rc702_state::dack2_w));
 	// Note: out_dack_callback<1> (FDC) is wired per-variant in
-	// rc702() / rc702mini() / rc703() / rc703maxi() because each
+	// rc702() / rc702mini() / rc703() because each
 	// variant uses a different UPD765A clock + floppy geometry.
 	// Upstream's 2026 reorganization moved this to rc700_base; we
 	// keep it per-variant to preserve the multi-machine structure.
@@ -795,22 +795,6 @@ void rc702_state::rc703(machine_config &config)
 	// TODO: Hard disk ports 0x60-0x67, CTC2 ports 0x44-0x47
 }
 
-void rc702_state::rc703maxi(machine_config &config)
-{
-	rc700_base(config);
-
-	UPD765A(config, m_fdc, 8_MHz_XTAL, true, true);  // 8 MHz for 8" drives
-	m_fdc->intrq_wr_callback().set(m_ctc1, FUNC(z80ctc_device::trg3));
-	m_fdc->drq_wr_callback().set(m_dma, FUNC(am9517a_device::dreq1_w));
-	m_dma->in_ior_callback<1>().set(m_fdc, FUNC(upd765a_device::dma_r));
-	m_dma->out_iow_callback<1>().set(m_fdc, FUNC(upd765a_device::dma_w));
-	m_dma->out_dack_callback<1>().set(FUNC(rc702_state::dack1_w));
-
-	FLOPPY_CONNECTOR(config, "fdc:0", rc702_floppies, "8dsdd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
-	FLOPPY_CONNECTOR(config, "fdc:1", rc702_floppies, nullptr, floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
-	// TODO: Hard disk ports 0x60-0x67, CTC2 ports 0x44-0x47
-}
-
 // RC702 8" variant with SEM702 RAM-based chargen board fitted in IC82.
 // Identical to rc702 (same FDC, floppies, etc.) except the upper 2 KB of
 // the "chargen" region is RAM that the CPU programmes via ports
@@ -850,24 +834,6 @@ ROM_START( rc702 )
 	ROM_LOAD( "roa327.rom", 0x0800, 0x0800, CRC(bed7ddb0) SHA1(201ae9e4ac3812577244b9c9044fadd04fb2b82f) ) // semi_gfx
 ROM_END
 
-/* RC703 maxi: rob358 (RC700) as default BIOS */
-ROM_START( rc703maxi )
-	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF ) // IC66: 2716 (2KB) or 2732 (4KB); size selection mechanism TBD
-	ROM_SYSTEM_BIOS(0, "rc700", "RC700")
-	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800,  CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(0))
-	ROM_SYSTEM_BIOS(1, "rc702", "RC702")
-	ROMX_LOAD( "roa375.ic66", 0x0000, 0x0800, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084), ROM_BIOS(1))
-	ROM_SYSTEM_BIOS(2, "rc703", "RC703")
-	ROMX_LOAD( "rob357.rom", 0x0000, 0x0800,  CRC(dcf84a48) SHA1(7190d3a898bcbfa212178a4d36afc32bbbc166ef), ROM_BIOS(2))
-
-	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF ) // 2716 (2KB) or 2732 (4KB), jumper-selectable
-	ROM_FILL( 0x0000, 0x1000, 0xff )
-
-	ROM_REGION( 0x1000, "chargen", 0 )
-	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) )
-	ROM_LOAD( "roa327.rom", 0x0800, 0x0800, CRC(bed7ddb0) SHA1(201ae9e4ac3812577244b9c9044fadd04fb2b82f) )
-ROM_END
-
 /* RC702 8" with SEM702 RAM-based chargen in IC82.  ROA296 still occupies
  * the lower half of the chargen region; the upper half (where ROA327
  * lives on stock hardware) is replaced at run time by m_sem702_ram and
@@ -899,5 +865,5 @@ ROM_END
 COMP( 1979, rc702,       0,      0,      rc702,       rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo (8\")",             MACHINE_SUPPORTS_SAVE )
 COMP( 1979, rc702mini,   rc702,  0,      rc702mini,   rc702_mini,  rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo (5.25\")",          MACHINE_SUPPORTS_SAVE )
 COMP( 1982, rc703,       rc702,  0,      rc703,       rc702_mini,  rc702_state, empty_init, "Regnecentralen", "RC703 Piccolo (5.25\")",          MACHINE_SUPPORTS_SAVE )
-COMP( 1982, rc703maxi,   rc702,  0,      rc703maxi,   rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC703 Piccolo (8\")",             MACHINE_SUPPORTS_SAVE )
+
 COMP( 1979, rc702sem702, rc702,  0,      rc702sem702, rc702_maxi,  rc702_state, empty_init, "Regnecentralen", "RC702 Piccolo (8\", SEM702)",    MACHINE_SUPPORTS_SAVE )
