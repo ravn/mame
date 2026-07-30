@@ -698,7 +698,7 @@ void rc702_state::rc703(machine_config &config)
 	config.device_remove("fdc:1");
 	FLOPPY_CONNECTOR(config, "fdc:0", rc703_floppies, "525qd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
 	FLOPPY_CONNECTOR(config, "fdc:1", rc703_floppies, "525qd", floppy_image_device::default_mfm_floppy_formats).enable_sound(false);
-	// TODO: Hard disk ports 0x60-0x67, CTC2 ports 0x44-0x47
+	// TODO: Hard disk ports 0x60-0x67, CTC2 ports (on hard disk board) 0x44-0x47
 }
 
 // RC702 8" with a SEM702 RAM chargen board in IC82: identical to rc702 but
@@ -712,16 +712,19 @@ void rc702_state::rc702sem702(machine_config &config)
 
 
 /* ROM definition */
+
+// TODO: revisit the PROM-to-machine assignment.  roa375 (RC702), rob357
+// (RC703) and rob358 (RC700/RC703) are three fully separate autoload
+// codebases (~99% different).  rob358 relocates to 0xA000 with a 64K
+// layout and adds colour-CRT, hard-disk and ID-COMAL support that roa375
+// lacks, so it is really an RC700/RC703 PROM.  For now: rc702 boots
+// roa375 only; rc703 defaults to rob357 with rob358 as an RC700 option.
+
 ROM_START( rc702 )
 	// IC66: 2716 (2KB) or 2732 (4KB) EPROM.  Region is 0x1000 with ERASEFF;
 	// a 2KB dump fills the low half and the rest stays 0xff.
 	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF )
-	ROM_SYSTEM_BIOS(0, "rc702", "RC702")
-	ROMX_LOAD( "roa375.ic66", 0x0000, 0x0800, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084), ROM_BIOS(0))
-	ROM_SYSTEM_BIOS(1, "rc703", "RC703")
-	ROMX_LOAD( "rob357.rom",  0x0000, 0x0800, CRC(dcf84a48) SHA1(7190d3a898bcbfa212178a4d36afc32bbbc166ef), ROM_BIOS(1))
-	ROM_SYSTEM_BIOS(2, "rc700", "RC700")
-	ROMX_LOAD( "rob358.rom",  0x0000, 0x0800, CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(2))
+	ROM_LOAD( "roa375.ic66", 0x0000, 0x0800, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084) )
 
 	// IC65 line-program ROM (ROB388 on MIC705), undumped.  Optional: drop a
 	// prom1.ic65 into the rom path to supply one; otherwise stays 0xff.
@@ -733,15 +736,30 @@ ROM_START( rc702 )
 	ROM_LOAD( "roa327.rom", 0x0800, 0x0800, CRC(bed7ddb0) SHA1(201ae9e4ac3812577244b9c9044fadd04fb2b82f) ) // semi_gfx
 ROM_END
 
+// RC703: defaults to its own rob357 PROM; rob358 (RC700/RC703) selectable.
+ROM_START( rc703 )
+	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF )
+	ROM_SYSTEM_BIOS(0, "rc703", "RC703")
+	ROMX_LOAD( "rob357.rom", 0x0000, 0x0800, CRC(dcf84a48) SHA1(7190d3a898bcbfa212178a4d36afc32bbbc166ef), ROM_BIOS(0))
+	ROM_SYSTEM_BIOS(1, "rc700", "RC700")
+	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800, CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(1))
+
+	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF )
+	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
+
+	ROM_REGION( 0x1000, "chargen", 0 )
+	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) )
+	ROM_LOAD( "roa327.rom", 0x0800, 0x0800, CRC(bed7ddb0) SHA1(201ae9e4ac3812577244b9c9044fadd04fb2b82f) )
+ROM_END
+
 } // anonymous namespace
 
 
 /* Driver */
 
-// All variants share rc702's ROM set.  rc702sem702 still loads roa327.rom
-// but ignores it (display_pixels reads m_sem702_ram instead).
+// rc702mini and rc702sem702 are RC702 machines -> roa375.  rc703 has its own
+// ROM_START above.
 #define rom_rc702mini    rom_rc702
-#define rom_rc703        rom_rc702
 #define rom_rc702sem702  rom_rc702
 
 //    YEAR  NAME         PARENT  COMPAT  MACHINE      INPUT        CLASS        INIT        COMPANY           FULLNAME                          FLAGS
