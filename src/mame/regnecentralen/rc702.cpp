@@ -21,15 +21,25 @@ ToDo:
 
 PIO peripherals (J3 / J4):
 - PIO-A (J4): keyboard, wired direct (generic_keyboard -> kbd_put -> in_pa_callback).
-  Originally a slot device too -- reverted to direct wiring as a workaround for
-  ravn/mame#6 (two slot devices on a single Z80-PIO chip break IM2 IRQ delivery
-  in MAME's flat z80pio_device model).  Matches Einstein's proven topology
-  (Port A direct, Port B via slot).
 - PIO-B (J3): exposed as a configurable slot device via bus/rc702/pio_port/.
   Default empty (matches factory state -- J3 was an unpopulated expansion
   connector with no power rail, see RC702 Technical Reference).
 - Note: PIO-B is *not* the printer port; the printer was always on a SIO
   channel per the hardware reference and the standard CP/M IOBYTE mapping.
+
+Z80 PIO modeling note:
+  The RC702 is the first machine in MAME where both ports of a single Z80-PIO
+  are exposed as user-pluggable slot devices.  Earlier drivers either wire both
+  ports directly (e.g. Xerox 820) or wrap only one port in a slot (e.g. the
+  Einstein userport on PIO-B while PIO-A stays direct).  Attempting to make
+  both ports slot devices on the same z80pio_device broke IM2 interrupt
+  delivery: z80pio_device is a flat device with no per-channel device_t
+  subdevices, and the slot mechanism had only been validated against chips that
+  expose per-channel subdevices (z80sio_channel, floppy_connector, etc.).
+  The workaround adopted here follows the Einstein topology: PIO-A is wired
+  direct, PIO-B is the slot.  This is sufficient for the RC702 use case since
+  J4 (PIO-A) is the fixed keyboard connector and J3 (PIO-B) is the expansion
+  slot.
 - prom1 (line program ROM) is undumped; the region is filled with 0xff to avoid a missing-ROM
   warning.
 
