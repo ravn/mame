@@ -212,35 +212,17 @@ static INPUT_PORTS_START( rc702_promcfg )
 	PORT_CONFSETTING(    0x02, "2732 (4KB)")
 INPUT_PORTS_END
 
-/* Input ports - PROM reads port 0x14 bit 7: set=mini, clear=maxi.
- * Reconstructed-firmware uses for the SW1 bits (canonical doc is
- * rc700-gensmedet/docs/SW1_BIT_MAP.md):
- *   bit 0 (S01): console mode -- On (bit=0, default) = joined
- *                (SIO-B + keyboard input, SIO-B + CRT output);
- *                Off (bit=1) = local CRT + keyboard only.  Both
- *                rcbios-in-c and cpnos-in-c honour this at cold boot.
- *   bit 1 (S02): PROM1 lineprog enable -- On (bit=0, default) =
- *                autoload checks PROM1 signature on floppy-boot
- *                failure and jumps if present; Off (bit=1) = skip
- *                the check, halt with NO DISKETTE NOR LINEPROG.
- *                No longer gates chargen loading (autoload's
- *                define_sextants runs unconditionally since 2026-05-17).
- *   bit 2 (S03): cpnos transport (PROM1-only lineprog build) --
- *                On (bit=0, default) = PIO-B (IRQ, 256 B ring),
- *                Off (bit=1) = SIO-A (38400 polled).  Both linked,
- *                jump-table patched at cold-init.  Ignored on
- *                two-PROM cpnos builds.
- *   bit 7 (S08): mini/maxi floppy (original-RC702 hardware bit). */
+/* Input ports - PROM reads port 0x14 bit 7: set=mini, clear=maxi. */
 static INPUT_PORTS_START( rc702_maxi )
 	PORT_INCLUDE( rc702_promcfg )
 	PORT_START("DSW")
-	PORT_DIPNAME( 0x01, 0x00, "S01 SIO-B console (rcbios)")
+	PORT_DIPNAME( 0x01, 0x00, "S01")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x02, 0x00, "S02 PROM1=lineprog")
+	PORT_DIPNAME( 0x02, 0x00, "S02")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x04, 0x00, "S03 cpnos transport (On=PIO, Off=SIO)")
+	PORT_DIPNAME( 0x04, 0x00, "S03")
 	PORT_DIPSETTING(    0x04, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
 	PORT_DIPNAME( 0x08, 0x00, "S04")
@@ -260,17 +242,17 @@ static INPUT_PORTS_START( rc702_maxi )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ))
 INPUT_PORTS_END
 
-/* See rc702_maxi comment for the SW1 bit assignments. */
+/* rc702_mini: S08 defaults On (bit set = mini), rest identical to rc702_maxi. */
 static INPUT_PORTS_START( rc702_mini )
 	PORT_INCLUDE( rc702_promcfg )
 	PORT_START("DSW")
-	PORT_DIPNAME( 0x01, 0x00, "S01 SIO-B console (rcbios)")
+	PORT_DIPNAME( 0x01, 0x00, "S01")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x02, 0x00, "S02 PROM1=lineprog")
+	PORT_DIPNAME( 0x02, 0x00, "S02")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x04, 0x00, "S03 cpnos transport (On=PIO, Off=SIO)")
+	PORT_DIPNAME( 0x04, 0x00, "S03")
 	PORT_DIPSETTING(    0x04, DEF_STR( Off ))
 	PORT_DIPSETTING(    0x00, DEF_STR( On ))
 	PORT_DIPNAME( 0x08, 0x00, "S04")
