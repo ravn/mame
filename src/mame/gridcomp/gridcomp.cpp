@@ -43,7 +43,6 @@
     - EAROM (X2210D)
     - modem (incl. DTMF generator)
     - proper serial port connection (incl. PAL 16R4 300135-02)
-    - keyboard MCU emulation
     - proper custom DMA logic timing
     - loading ROMs for Compass II
     - proper 2101 and 2102 emulation
@@ -71,7 +70,7 @@
 #include "bus/rs232/printer.h"
 #include "bus/rs232/rs232.h"
 #include "cpu/i86/i86.h"
-#include "machine/i7110.h"
+#include "machine/i7220.h"
 #include "machine/i80130.h"
 #include "machine/i8087.h"
 #include "machine/i8255.h"
@@ -113,8 +112,8 @@ public:
 		, m_dac(*this, "dac0832")
 		, m_ram(*this, RAM_TAG)
 		, m_tms9914(*this, "hpib")
+		, m_keyboard(*this, "keyboard")
 		, m_test_rom(*this, "test_rom")
-		, m_bmc(*this, "bmc")
 		, m_app_roms(*this, "app_rom%u", 0U)
 	{ }
 
@@ -129,7 +128,6 @@ public:
 
 protected:
 	virtual void machine_start() override ATTR_COLD;
-	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<i8086_cpu_device> m_maincpu;
@@ -140,27 +138,16 @@ private:
 	required_device<dac0832_device> m_dac;
 	required_device<ram_device> m_ram;
 	required_device<tms9914_device> m_tms9914;
+	required_device<grid_keyboard_device> m_keyboard;
 	required_device<gridrom_socket_device> m_test_rom;
-	required_device<i7220_1_device> m_bmc;
 	optional_device_array<gridrom_socket_device, 4> m_app_roms;
-
-	bool m_kbd_ready = false;
-	uint16_t m_kbd_data = 0;
 
 	uint16_t *m_videoram = nullptr;
 
 	IRQ_CALLBACK_MEMBER(irq_callback);
 
-	void bubble_irq_w(int state);
-	void bubble_drq_w(int state);
-
-	bool m_drq;
-	bool m_irq;
-
 	uint16_t grid_9ff0_r(offs_t offset);
-	uint16_t grid_keyb_r(offs_t offset);
 	uint8_t grid_modem_r(offs_t offset);
-	void grid_keyb_w(offs_t offset, uint16_t data);
 	void grid_modem_w(offs_t offset, uint8_t data);
 
 	void grid_sound_w(offs_t offset, uint8_t data);
@@ -170,8 +157,6 @@ private:
 
 	template <int Width>
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
-
-	void kbd_put(u16 data);
 
 	void grid1101_io(address_map &map) ATTR_COLD;
 	void grid1101_map(address_map &map) ATTR_COLD;
@@ -210,42 +195,6 @@ static void rs232_devices(device_slot_interface &device)
 
 	return data;
 }
-
-uint16_t gridcomp_state::grid_keyb_r(offs_t offset)
-{
-	uint16_t data = 0;
-
-	switch (offset)
-	{
-	case 0:
-		data = m_kbd_data;
-		m_kbd_data = 0xff;
-		m_kbd_ready = false;
-		m_osp->ir4_w(CLEAR_LINE);
-		break;
-
-	case 1:
-		data = m_kbd_ready ? 2 : 0;
-		break;
-	}
-
-	LOGKBD("%02x == %02x\n", 0xdffc0 + (offset << 1), data);
-
-	return data;
-}
-
-void gridcomp_state::grid_keyb_w(offs_t offset, uint16_t data)
-{
-	LOGKBD("%02x <- %02x\n", 0xdffc0 + (offset << 1), data);
-}
-
-void gridcomp_state::kbd_put(u16 data)
-{
-	m_kbd_data = data;
-	m_kbd_ready = true;
-	m_osp->ir4_w(ASSERT_LINE);
-}
-
 
 // reject all commands
 uint8_t gridcomp_state::grid_modem_r(offs_t offset)
@@ -320,13 +269,7 @@ void gridcomp_state::machine_start()
 	program.install_ram(0, m_ram->size() - 1, m_ram->pointer());
 
 	m_videoram = (uint16_t *)m_maincpu->space(AS_PROGRAM).get_write_ptr(0x400);
-}
 
-void gridcomp_state::machine_reset()
-{
-	m_kbd_ready = false;
-	m_irq = false;
-	m_drq = false;
 }
 
 IRQ_CALLBACK_MEMBER(gridcomp_state::irq_callback)
@@ -334,30 +277,19 @@ IRQ_CALLBACK_MEMBER(gridcomp_state::irq_callback)
 	return m_osp->inta_r();
 }
 
-void gridcomp_state::bubble_irq_w(int state)
-{
-	m_irq = state != 0;
-	m_osp->ir1_w(m_irq || m_drq);
-}
-
-void gridcomp_state::bubble_drq_w(int state)
-{
-	m_drq = state != 0;
-	m_osp->ir1_w(m_irq || m_drq);
-}
 
 void gridcomp_state::grid1101_map(address_map &map)
 {
 	map.unmap_value_high();
 	map(0xc0000, 0xcffff).r(m_test_rom, FUNC(gridrom_socket_device::read));
 	map(0xdfe40, 0xdfe4f).w(FUNC(gridcomp_state::grid_sound_w));  // modem controller??
-	map(0xdfe80, 0xdfe83).rw(m_bmc, FUNC(i7220_1_device::read), FUNC(i7220_1_device::write)).umask16(0x00ff);
+	map(0xdfe80, 0xdfe83).rw("i7220", FUNC(i7220_device::read), FUNC(i7220_device::write)).umask16(0x00ff);
 	map(0xdfea0, 0xdfeaf).unmaprw(); // ??
 	map(0xdfec0, 0xdfecf).rw(FUNC(gridcomp_state::grid_modem_r), FUNC(gridcomp_state::grid_modem_w)).umask16(0x00ff); // incl. DTMF generator
 	map(0xdff00, 0xdff1f).rw(m_uart8274, FUNC(i8274_device::cd_ba_r), FUNC(i8274_device::cd_ba_w)).umask16(0x00ff);
 	map(0xdff40, 0xdff5f).rw(m_rtc, FUNC(mm58174_device::read), FUNC(mm58174_device::write)).umask16(0xff00);
 	map(0xdff80, 0xdff8f).rw("hpib", FUNC(tms9914_device::read), FUNC(tms9914_device::write)).umask16(0x00ff);
-	map(0xdffc0, 0xdffcf).rw(FUNC(gridcomp_state::grid_keyb_r), FUNC(gridcomp_state::grid_keyb_w)); // Intel 8741 MCU
+	map(0xdffc0, 0xdffcf).rw(m_keyboard, FUNC(grid_keyboard_device::read), FUNC(grid_keyboard_device::write)).umask16(0x00ff); // Intel 8741 MCU
 	map(0xe0000, 0xeffff).rw(FUNC(gridcomp_state::grid_dma_r), FUNC(gridcomp_state::grid_dma_w)); // DMA
 	map(0xfc000, 0xfffff).rom().region("user1", 0);
 }
@@ -371,13 +303,13 @@ void gridcomp_state::grid1121_map(address_map &map)
 	map(0xdfa00, 0xdfdff).rw(FUNC(gridcomp_state::grid_dma_r), FUNC(gridcomp_state::grid_dma_w)); // DMA
 	map(0xdfe00, 0xdfe1f).unmaprw(); // ??
 	map(0xdfe40, 0xdfe4f).w(FUNC(gridcomp_state::grid_sound_w));  // modem controller??
-	map(0xdfe80, 0xdfe83).rw(m_bmc, FUNC(i7220_1_device::read), FUNC(i7220_1_device::write)).umask16(0x00ff);
+	map(0xdfe80, 0xdfe83).rw("i7220", FUNC(i7220_device::read), FUNC(i7220_device::write)).umask16(0x00ff);
 	map(0xdfea0, 0xdfeaf).unmaprw(); // ??
 	map(0xdfec0, 0xdfecf).rw(FUNC(gridcomp_state::grid_modem_r), FUNC(gridcomp_state::grid_modem_w)).umask16(0x00ff); // incl. DTMF generator
 	map(0xdff00, 0xdff1f).rw(m_uart8274, FUNC(i8274_device::cd_ba_r), FUNC(i8274_device::cd_ba_w)).umask16(0x00ff);
 	map(0xdff40, 0xdff5f).rw(m_rtc, FUNC(mm58174_device::read), FUNC(mm58174_device::write)).umask16(0xff00);
 	map(0xdff80, 0xdff8f).rw("hpib", FUNC(tms9914_device::read), FUNC(tms9914_device::write)).umask16(0x00ff);
-	map(0xdffc0, 0xdffcf).rw(FUNC(gridcomp_state::grid_keyb_r), FUNC(gridcomp_state::grid_keyb_w)); // Intel 8741 MCU
+	map(0xdffc0, 0xdffcf).rw(m_keyboard, FUNC(grid_keyboard_device::read), FUNC(grid_keyboard_device::write)).umask16(0x00ff); // Intel 8741 MCU
 	map(0xfc000, 0xfffff).rom().region("user1", 0);
 }
 
@@ -432,63 +364,15 @@ void gridcomp_state::grid1101(machine_config &config)
 	PALETTE(config, "palette", palette_device::MONOCHROME);
 
 	grid_keyboard_device &keyboard(GRID_KEYBOARD(config, "keyboard"));
-	keyboard.set_keyboard_callback(FUNC(gridcomp_state::kbd_put));
+	keyboard.irq_callback().set(I80130_TAG, FUNC(i80130_device::ir4_w));
+	keyboard.dma_callback().set_nop();
+	keyboard.nmi_callback().set_nop();
 
-	I7220_1(config, m_bmc, XTAL(4'000'000));
-	m_bmc->irq_callback().set(FUNC(gridcomp_state::bubble_irq_w));
-	m_bmc->drq_callback().set(FUNC(gridcomp_state::bubble_drq_w));
-
-	ibubble_device& mbm0(IBUBBLE(config, "mbm0", XTAL(4'000'000)));
-	ibubble_device& mbm1(IBUBBLE(config, "mbm1", XTAL(4'000'000)));
-	ibubble_device& mbm2(IBUBBLE(config, "mbm2", XTAL(4'000'000)));
-
-	m_bmc->field_rotate_callback().set(mbm0, FUNC(ibubble_device::field_rotate));
-	m_bmc->field_rotate_callback().append(mbm1, FUNC(ibubble_device::field_rotate));
-	m_bmc->field_rotate_callback().append(mbm2, FUNC(ibubble_device::field_rotate));
-
-	m_bmc->select_w_callback().set(mbm0, FUNC(ibubble_device::select_w));
-	mbm0.select_w_callback().set(mbm1, FUNC(ibubble_device::select_w));
-	mbm1.select_w_callback().set(mbm2, FUNC(ibubble_device::select_w));
-
-	m_bmc->cmd_w_callback().set(mbm0, FUNC(ibubble_device::cmd_w));
-	m_bmc->cmd_w_callback().append(mbm1, FUNC(ibubble_device::cmd_w));
-	m_bmc->cmd_w_callback().append(mbm2, FUNC(ibubble_device::cmd_w));
-
-	m_bmc->dio_w_callback().set(mbm0, FUNC(ibubble_device::dio_w));
-	mbm0.dio_w_callback().set(mbm1, FUNC(ibubble_device::dio_w));
-	mbm1.dio_w_callback().set(mbm2, FUNC(ibubble_device::dio_w));
-
-	m_bmc->dio_r_callback().set(mbm0, FUNC(ibubble_device::dio_r));
-	mbm0.dio_r_callback().set(mbm1, FUNC(ibubble_device::dio_r));
-	mbm1.dio_r_callback().set(mbm2, FUNC(ibubble_device::dio_r));
-
-	m_bmc->status_r_callback().set(mbm0, FUNC(ibubble_device::status_r));
-	mbm0.status_r_callback().set(mbm1, FUNC(ibubble_device::status_r));
-	mbm1.status_r_callback().set(mbm2, FUNC(ibubble_device::status_r));
-
-	m_bmc->shiftclk_callback().set(mbm0, FUNC(ibubble_device::shiftclk));
-	m_bmc->shiftclk_callback().append(mbm1, FUNC(ibubble_device::shiftclk));
-	m_bmc->shiftclk_callback().append(mbm2, FUNC(ibubble_device::shiftclk));
-
-	m_bmc->bubble_replicate_callback().set(mbm0, FUNC(ibubble_device::bubble_replicate));
-	m_bmc->bubble_replicate_callback().append(mbm1, FUNC(ibubble_device::bubble_replicate));
-	m_bmc->bubble_replicate_callback().append(mbm2, FUNC(ibubble_device::bubble_replicate));
-
-	m_bmc->bootloop_replicate_callback().set(mbm0, FUNC(ibubble_device::bootloop_replicate));
-	m_bmc->bootloop_replicate_callback().append(mbm1, FUNC(ibubble_device::bootloop_replicate));
-	m_bmc->bootloop_replicate_callback().append(mbm2, FUNC(ibubble_device::bootloop_replicate));
-
-	m_bmc->bubble_swap_callback().set(mbm0, FUNC(ibubble_device::bubble_swap));
-	m_bmc->bubble_swap_callback().append(mbm1, FUNC(ibubble_device::bubble_swap));
-	m_bmc->bubble_swap_callback().append(mbm2, FUNC(ibubble_device::bubble_swap));
-
-	m_bmc->bootloop_swap_callback().set(mbm0, FUNC(ibubble_device::bootloop_swap));
-	m_bmc->bootloop_swap_callback().append(mbm1, FUNC(ibubble_device::bootloop_swap));
-	m_bmc->bootloop_swap_callback().append(mbm2, FUNC(ibubble_device::bootloop_swap));
-
-	m_bmc->errflg_r_callback().set(mbm0, FUNC(ibubble_device::errflg_r));
-	mbm0.errflg_r_callback().set(mbm1, FUNC(ibubble_device::errflg_r));
-	mbm1.errflg_r_callback().set(mbm2, FUNC(ibubble_device::errflg_r));
+	i7220_device &i7220(I7220(config, "i7220", XTAL(4'000'000)));
+	i7220.set_data_size(3); // 3 1-Mbit MBM's
+	i7220.set_must_be_loaded(true);
+	i7220.irq_callback().set(I80130_TAG, FUNC(i80130_device::ir1_w));
+	i7220.drq_callback().set(I80130_TAG, FUNC(i80130_device::ir1_w));
 
 	tms9914_device &hpib(TMS9914(config, m_tms9914, XTAL(4'000'000)));
 	hpib.int_write_cb().set(I80130_TAG, FUNC(i80130_device::ir5_w));

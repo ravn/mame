@@ -24,6 +24,17 @@ function addlibfromstring(str)
 	end
 end
 
+function addincludesfromstring(str)
+	if (str==nil) then return  end
+	for w in str:gmatch("%S+") do
+		if string.starts(w,"-I") then
+			includedirs {
+				string.sub(w,3)
+			}
+		end
+	end
+end
+
 function addoptionsfromstring(str)
 	if (str==nil) then return  end
 	for w in str:gmatch("%S+") do
@@ -94,11 +105,14 @@ function osdmodulesbuild()
 		MAME_DIR .. "src/osd/modules/input/input_rawinput.cpp",
 		MAME_DIR .. "src/osd/modules/input/input_sdl.cpp",
 		MAME_DIR .. "src/osd/modules/input/input_sdl3.cpp",
+		MAME_DIR .. "src/osd/modules/input/input_sdlcommon.cpp",
+		MAME_DIR .. "src/osd/modules/input/input_sdlcommon.h",
 		MAME_DIR .. "src/osd/modules/input/input_win32.cpp",
 		MAME_DIR .. "src/osd/modules/input/input_wincommon.h",
 		MAME_DIR .. "src/osd/modules/input/input_windows.cpp",
 		MAME_DIR .. "src/osd/modules/input/input_windows.h",
 		MAME_DIR .. "src/osd/modules/input/input_winhybrid.cpp",
+		MAME_DIR .. "src/osd/modules/input/input_winsdl.cpp",
 		MAME_DIR .. "src/osd/modules/input/input_x11.cpp",
 		MAME_DIR .. "src/osd/modules/input/input_xinput.cpp",
 		MAME_DIR .. "src/osd/modules/input/input_xinput.h",

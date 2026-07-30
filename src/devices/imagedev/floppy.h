@@ -180,7 +180,7 @@ public:
 	void unload() { m_firstturn = true; }
 	bool samples_loaded() { return m_samples_available; }
 	void register_for_save_states();
-	void set_samples(floppy_sound_samples *samples, int form_factor);
+	void set_samples(floppy_sound_samples *samples, int form_factor, int maxtrack);
 
 protected:
 	void device_start() override ATTR_COLD;
@@ -193,6 +193,7 @@ private:
 	floppy_sound_samples* m_samplelist;
 	floppy_sound_samples m_default_samples;
 
+	int    m_max_track;
 	int    m_last_track;
 	int    m_last_subtrack;
 
@@ -482,6 +483,7 @@ DECLARE_FLOPPY_IMAGE_DEVICE(FLOPPY_3_DSSD,       floppy_3_dssd,       "floppy_3"
 DECLARE_FLOPPY_IMAGE_DEVICE(FLOPPY_3_SSDD,       floppy_3_ssdd,       "floppy_3")
 DECLARE_FLOPPY_IMAGE_DEVICE(FLOPPY_3_DSDD,       floppy_3_dsdd,       "floppy_3")
 DECLARE_FLOPPY_IMAGE_DEVICE(FLOPPY_3_DSQD,       floppy_3_dsqd,       "floppy_3")
+DECLARE_FLOPPY_IMAGE_DEVICE(FLOPPY_35_SSSD,      floppy_35_sssd,      "floppy_3_5")
 DECLARE_FLOPPY_IMAGE_DEVICE(FLOPPY_35_SSDD,      floppy_35_ssdd,      "floppy_3_5")
 DECLARE_FLOPPY_IMAGE_DEVICE(FLOPPY_35_DD,        floppy_35_dd,        "floppy_3_5")
 DECLARE_FLOPPY_IMAGE_DEVICE(FLOPPY_35_HD,        floppy_35_hd,        "floppy_3_5")
