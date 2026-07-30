@@ -25,11 +25,9 @@ PIO peripherals (J3 / J4):
   ravn/mame#6 (two slot devices on a single Z80-PIO chip break IM2 IRQ delivery
   in MAME's flat z80pio_device model).  Matches Einstein's proven topology
   (Port A direct, Port B via slot).
-- PIO-B (J3): exposed as a configurable slot device via bus/rc702/pio_port/
-  (see rc700-gensmedet docs/cpnet_fast_link.md).  Default empty (matches factory
-  state — J3 was an unpopulated expansion connector with no power rail, see
-  RC702 Technical Reference).  `-piob cpnet_bridge` plugs in the CP/NET host
-  bridge for Option P fast-link work.
+- PIO-B (J3): exposed as a configurable slot device via bus/rc702/pio_port/.
+  Default empty (matches factory state — J3 was an unpopulated expansion
+  connector with no power rail, see RC702 Technical Reference).
 - Note: PIO-B is *not* the printer port; the printer was always on a SIO
   channel per the hardware reference and the standard CP/M IOBYTE mapping.
 - prom1 (line program ROM) is undumped; the region is filled with 0xff to avoid a missing-ROM
@@ -682,8 +680,7 @@ void rc702_state::rc700_base(machine_config &config)
 	// validated against per-channel-subdevice chips like Z80-SIO.
 	m_pio->in_pa_callback().set(FUNC(rc702_state::kbd_r));
 	// PIO-B: configurable slot device.  Default empty (matches factory
-	// state of the J3 expansion connector).  `-piob cpnet_bridge`
-	// plugs in the CP/NET host bridge for Option P.
+	// state of the J3 expansion connector).
 	m_pio->in_pb_callback().set(m_pio_b, FUNC(rc702_pio_port_device::read));
 	m_pio->out_pb_callback().set(m_pio_b, FUNC(rc702_pio_port_device::write));
 	m_pio->out_brdy_callback().set(m_pio_b, FUNC(rc702_pio_port_device::rdy_w));
