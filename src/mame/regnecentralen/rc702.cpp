@@ -210,7 +210,7 @@ static INPUT_PORTS_START( rc702_promcfg )
 	PORT_CONFNAME( 0x01, 0x00, "PROM0 (IC66) Type")
 	PORT_CONFSETTING(    0x00, "2716 (2KB)")
 	PORT_CONFSETTING(    0x01, "2732 (4KB)")
-	PORT_CONFNAME( 0x02, 0x00, "PROM1 (IC65) Type")
+	PORT_CONFNAME( 0x02, 0x02, "PROM1 (IC65) Type")
 	PORT_CONFSETTING(    0x00, "2716 (2KB)")
 	PORT_CONFSETTING(    0x02, "2732 (4KB)")
 INPUT_PORTS_END
@@ -331,11 +331,12 @@ void rc702_state::machine_start()
 
 	if (m_has_sem702)
 	{
-		// Power-on SEM702 RAM is undefined.  Initialise to 0xFF so an
+		// Power-on SEM702 RAM replacing ROA327 is undefined.  Initialise to 0xFF so an
 		// un-programmed boot shows solid blocks (loudly "no font loaded")
 		// rather than blank screen that could be mistaken for a working
 		// display.  Software is expected to overwrite this before
-		// enabling the CRT.
+		// enabling the CRT.  Modern versions of PROM0 autoloader program this
+		// to the ROA327 font data at boot, but original versions do not.
 		std::memset(m_sem702_ram, 0xff, sizeof(m_sem702_ram));
 		save_item(NAME(m_sem702_ram));
 		save_item(NAME(m_sem702_char_latch));
@@ -688,6 +689,12 @@ void rc702_state::rc700_base(machine_config &config)
 	m_dma->out_eop_callback().set(FUNC(rc702_state::eop_w)).invert();   // real line is active low, mame has it backwards
 	m_dma->in_memr_callback().set(FUNC(rc702_state::memory_read_byte));
 	m_dma->out_memw_callback().set(FUNC(rc702_state::memory_write_byte));
+	// Both DMA ch2 and ch3 feed the 8275 CRTC.  The hardware supports
+	// split-screen: ch2 carries the first segment and ch3 the second,
+	// with the 74LS74 on MIC 11 switching DRQ routing between them at
+	// the end of ch2's TC pulse.  This capability was not used by the
+	// original RC702 software; all known firmware drives a single
+	// full-screen segment via ch2 only.
 	m_dma->out_iow_callback<2>().set("crtc", FUNC(i8275_device::dack_w));
 	m_dma->out_iow_callback<3>().set("crtc", FUNC(i8275_device::dack_w));
 	// ch2 DACK feeds the 74LS32 OR gate on MIC 11 (alongside the
