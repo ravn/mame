@@ -2,11 +2,11 @@
 // copyright-holders: ravn
 /***************************************************************************
 
-    Regnecentralen RC702 / RC703 — Z80 PIO port slot
+    Regnecentralen RC702 / RC703 -- Z80 PIO port slot
 
     Generic 8-bit + STB/RDY peripheral slot for the RC702's Z80-PIO ports
     (J3 and J4 on the back of the machine).  Modelled on
-    bus/einstein/userport — `read()` / `write(uint8_t)` / `rdy_w(int)`
+    bus/einstein/userport -- `read()` / `write(uint8_t)` / `rdy_w(int)`
     interface; cards assert STB into the chip via the slot's
     out_strobe_handler.
 
@@ -55,7 +55,7 @@ public:
 	// driver-side: bind handlers wiring the slot back into the Z80 PIO chip
 	auto out_strobe_handler() { return m_strobe_handler.bind(); }
 
-	// called from card device — assert STB into the chip
+	// called from card device -- assert STB into the chip
 	void strobe_w(int state) { m_strobe_handler(state); }
 
 	// chip-side: PIO uses these to talk to the card
@@ -72,7 +72,7 @@ private:
 	devcb_write_line m_strobe_handler;
 };
 
-// abstract interface — every card implements these
+// abstract interface -- every card implements these
 class device_rc702_pio_port_interface : public device_interface
 {
 public:

@@ -1,5 +1,5 @@
 #!/bin/sh
-# rc702_setup.sh — fetch ROMs and a CP/M boot disk for the MAME rc702 driver.
+# rc702_setup.sh -- fetch ROMs and a CP/M boot disk for the MAME rc702 driver.
 #
 # ROMs (roa375.ic66, roa296.rom, roa327.rom) are the genuine Regnecentralen
 # firmware dumps from Michael Ringgaard's original RC700 emulator project:
@@ -14,10 +14,10 @@
 #   sh src/mame/regnecentralen/rc702_setup.sh
 #
 # Files written:
-#   roms/rc702/roa375.ic66   — RC702 boot PROM (2 KB)
-#   roms/rc702/roa296.rom    — character generator (2 KB)
-#   roms/rc702/roa327.rom    — semi-graphics ROM (2 KB)
-#   rc702_sw/SW1711-I8.imd   — CP/M 2.2 boot disk
+#   roms/rc702/roa375.ic66   -- RC702 boot PROM (2 KB)
+#   roms/rc702/roa296.rom    -- character generator (2 KB)
+#   roms/rc702/roa327.rom    -- semi-graphics ROM (2 KB)
+#   rc702_sw/SW1711-I8.imd   -- CP/M 2.2 boot disk
 
 set -e
 

@@ -2,7 +2,7 @@
 // copyright-holders: ravn
 /***************************************************************************
 
-    RC702 keyboard — Z80 PIO port slot card
+    RC702 keyboard -- Z80 PIO port slot card
 
     Encapsulates the RC702's keyboard input behaviour: a generic keyboard
     widget supplies typed bytes; on each keystroke the byte is latched
