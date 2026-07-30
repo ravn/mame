@@ -5,6 +5,7 @@
 Regnecentralen Piccolo RC702/RC703
 
 2016-09-10 Skeleton driver
+2026-07-30 RC702 flavor boots to CP/M and ID-COMAL.
 
 Undumped prom at IC55 type 74S287 (address decoder for PROM0/PROM1 mapping)
 Keyboard has 8048 and 2758, both undumped.
@@ -21,8 +22,7 @@ ToDo:
 PIO peripherals (J3 / J4):
 - PIO-A (J4): keyboard, wired direct.
 - PIO-B (J3): configurable slot device (bus/rc702/pio_port/), default empty.
-  J3 was an unpopulated expansion connector. Not the printer port -- the
-  printer was always on a SIO channel.
+  J3 was an unpopulated expansion connector. Not the printer port, that was SIO-B.
 
 Z80 PIO modeling: PIO-A is wired direct and PIO-B is the slot ("Einstein
 topology", after src/mame/tatung/einstein.cpp).  Making both ports of one
@@ -31,6 +31,18 @@ z80pio_device has no per-channel device_t subdevices, and slots have only
 been validated against per-channel-subdevice chips (z80sio_channel etc.).
 
 prom1 (line program ROM) is undumped; region filled with 0xff.
+
+References:
+
+*  Latest technical manual for both RC702 and RC703:  https://github.com/ravn/rc700-gensmedet/blob/main/docs/RC702-RC703_Microcomputer_technical_manual.pdf
+
+*  Manuals and emulator: https://www.jbox.dk/rc702/manuals.sht
+   (https://web.archive.org/web/20250814205631/https://www.jbox.dk/rc702/manuals.shtm)
+
+*   Diskette image archive: https://ddhf.dk/wiki/Bits:Keyword/RC/RC700
+
+*   Refactoring firmware and bios: https://github.com/ravn/rc700-gensmedet
+
 
 ****************************************************************************************************************/
 
@@ -234,31 +246,10 @@ static INPUT_PORTS_START( rc702_maxi )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ))
 INPUT_PORTS_END
 
-/* rc702_mini: S08 defaults On (bit set = mini), rest identical to rc702_maxi. */
+/* Same as rc702_maxi but S08 (Minifloppy) defaults On. */
 static INPUT_PORTS_START( rc702_mini )
-	PORT_INCLUDE( rc702_promcfg )
-	PORT_START("DSW")
-	PORT_DIPNAME( 0x01, 0x00, "S01")
-	PORT_DIPSETTING(    0x01, DEF_STR( Off ))
-	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x02, 0x00, "S02")
-	PORT_DIPSETTING(    0x02, DEF_STR( Off ))
-	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x04, 0x00, "S03")
-	PORT_DIPSETTING(    0x04, DEF_STR( Off ))
-	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x08, 0x00, "S04")
-	PORT_DIPSETTING(    0x08, DEF_STR( Off ))
-	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x10, 0x00, "S05")
-	PORT_DIPSETTING(    0x10, DEF_STR( Off ))
-	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x20, 0x00, "S06")
-	PORT_DIPSETTING(    0x20, DEF_STR( Off ))
-	PORT_DIPSETTING(    0x00, DEF_STR( On ))
-	PORT_DIPNAME( 0x40, 0x00, "S07")
-	PORT_DIPSETTING(    0x40, DEF_STR( Off ))
-	PORT_DIPSETTING(    0x00, DEF_STR( On ))
+	PORT_INCLUDE( rc702_maxi )
+	PORT_MODIFY("DSW")
 	PORT_DIPNAME( 0x80, 0x80, "S08 Minifloppy")
 	PORT_DIPSETTING(    0x80, DEF_STR( On ))
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ))
