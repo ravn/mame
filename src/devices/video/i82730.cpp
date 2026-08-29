@@ -47,6 +47,7 @@ i82730_device::i82730_device(const machine_config &mconfig, const char *tag, dev
 	m_mode_set(false),
 	m_ca(0),
 	m_ca_latch(false),
+	m_gfx_mode(0),
 	m_sysbus(0x00),
 	m_ibp(0x0000),
 	m_cbp(0x0000),
@@ -95,6 +96,17 @@ void i82730_device::device_reset()
 	m_ca = 0;
 	m_ca_latch = false;
 	m_status = 0x0000;
+}
+
+
+//-------------------------------------------------
+//  set_gfx_mode - set graphics mode
+//-------------------------------------------------
+
+void i82730_device::set_gfx_mode(int mode)
+{
+	m_gfx_mode = mode;
+	log("i82730: graphics mode set to %d (%s)\n", mode, mode ? "graphics" : "alphanumeric");
 }
 
 

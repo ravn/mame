@@ -86,6 +86,7 @@ protected:
 
 	// shared 82730 text/video
 	I82730_UPDATE_ROW(txt_update_row);
+	I82730_UPDATE_ROW(gfx_update_row);
 	void txt_ca_w(uint16_t data);
 	void txt_irst_w(uint16_t data);
 	uint8_t palette_r(offs_t offset);

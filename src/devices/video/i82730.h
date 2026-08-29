@@ -41,6 +41,7 @@ public:
 
 	// inline configuration
 	template <typename... T> void set_update_row_callback(T &&... args) { m_update_row_cb.set(std::forward<T>(args)...); }
+	void set_gfx_mode(int mode);
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
@@ -117,6 +118,8 @@ private:
 	bool m_mode_set;
 	int m_ca;
 	bool m_ca_latch;
+
+	int m_gfx_mode;  // 0 = alphanumeric, 1 = graphics
 
 	uint8_t m_sysbus;
 	uint32_t m_ibp; // intermediate block pointer

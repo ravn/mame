@@ -20,6 +20,15 @@
 
 I82730_UPDATE_ROW( rc75x_state::txt_update_row )
 {
+	// Check if we're in graphics mode
+	if (m_gfx_mode)
+	{
+		// Graphics mode - delegate to gfx_update_row
+		gfx_update_row(bitmap, data, lc, y, x_count, cursor);
+		return;
+	}
+	
+	// Text mode - original implementation
 	for (int i = 0; i < x_count; i++)
 	{
 		bool cursor_here = (cursor == i);
@@ -61,6 +70,47 @@ I82730_UPDATE_ROW( rc75x_state::txt_update_row )
 		}
 	}
 }
+
+
+I82730_UPDATE_ROW( rc75x_state::gfx_update_row )
+{
+	// Graphics mode rendering
+	// For now, implement a simple test pattern to verify graphics mode is working
+	// This will display a checkerboard pattern
+	
+	// High-res: 560 pixels = 70 bytes per row, 1 bpp
+	// Medium-res: 280 pixels = 70 bytes per row, 2 bpp
+	// For now, assume 1 byte = 8 pixels (high-res mode)
+	
+	for (int i = 0; i < x_count; i++)
+	{
+		// In graphics mode, data[i] contains pixel data directly
+		// For high-res (1 bpp): each byte represents 8 pixels
+		// For medium-res (2 bpp): each byte represents 4 pixels
+		
+		// For now, implement a checkerboard pattern to test graphics mode
+		bool on = ((y / 16) + (i / 8)) % 2;
+		
+		// Draw 8 pixels per byte for high-res
+		for (int p = 0; p < 8; p++)
+		{
+			int x_pos = i * 8 + p;
+			if (x_pos < bitmap.width())
+			{
+				// Use white/black for now
+				bitmap.pix(y, x_pos) = on ? rgb_t(0xff, 0xff, 0xff) : rgb_t(0x00, 0x00, 0x00);
+			}
+		}
+	}
+	
+	// Log that we're in graphics mode
+	if (y == 0)
+	{
+		log("gfx_update_row: y=%d, x_count=%d, bitmap.width=%d, bitmap.height=%d\n", 
+			y, x_count, bitmap.width(), bitmap.height());
+	}
+}
+
 
 void rc75x_state::txt_ca_w(uint16_t data)
 {

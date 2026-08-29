@@ -305,6 +305,7 @@ void rc759_state::ppi_portc_w(uint8_t data)
 
 	m_kbd->enable_w(BIT(data, 7));
 	m_gfx_mode = BIT(data, 6);
+	m_txt->set_gfx_mode(m_gfx_mode);
 	m_nvram_bank = (data >> 4) & 0x03;
 	m_drq_source = (data >> 2) & 0x03;
 	m_cas->change_state(BIT(data, 1) ? CASSETTE_MOTOR_DISABLED : CASSETTE_MOTOR_ENABLED, CASSETTE_MASK_MOTOR);
