@@ -812,22 +812,46 @@ TIMER_CALLBACK_MEMBER( i82730_device::row_update )
 		// call driver (no cursor on the status row)
 		m_update_row_cb(m_bitmap, m_row, lc, y - m_mb.vsyncstp, m_row_count, -1);
 	}
-	else if (y == m_mb.vfldstp + m_mb.scroll_margin + 1 + m_mb.lpr + 1)
+	else
+	{
+		// vblank / off-field scanlines
+	}
+
+	// End-of-frame housekeeping: service a channel-attention command that was
+	// deferred while the display was active, and raise the periodic frame
+	// (EONF) interrupt. This must happen once per frame at vertical retrace.
+	//
+	// The natural trigger is one scanline past the status row
+	// (vfldstp + scroll_margin + 1 + lpr + 1); normally that lies in vertical
+	// blanking and row_update reaches it every frame. But a driver may program
+	// a field taller than the configured frame -- RC759 MYRESNAK's text page
+	// (entered by BB/HENT/HUSK) loads vfldstp=288, scroll_margin=31, lpr=15, so
+	// the trigger scanline is 288+31+1+15+1 = 336 while frame_length is only
+	// 312. row_update only walks y = 0..frame_length-1, so y never reaches 336,
+	// EONF is never set, no SINT is raised, and the driver's handshake
+	// ("set flag byte; OUT channel-attention (port 0x240); spin until the 82730
+	// interrupt handler clears the flag") spins forever -> the program appears
+	// to freeze. Clamp the trigger to the last physical scanline so the frame
+	// interrupt is generated exactly once per frame regardless of field
+	// geometry. Kept as a standalone check (not part of the y-range if/else
+	// chain above) so branch ordering can never shadow it when clamped into an
+	// earlier range.
+	int eof_line = m_mb.vfldstp + m_mb.scroll_margin + 1 + m_mb.lpr + 1;
+	if (eof_line > screen().height() - 1)
+		eof_line = screen().height() - 1;
+
+	if (y == eof_line)
 	{
 		// check ca latch
 		if (m_ca_latch)
 			attention();
 
-		// frame interrupt?
-		if ((screen().frame_number() % m_mb.frame_int_count) == 0)
+		// frame interrupt? (guard the modulo -- a zero count would divide by 0)
+		if (m_mb.frame_int_count && (screen().frame_number() % m_mb.frame_int_count) == 0)
 			m_status |= EONF;
 
 		// check interrupts
 		update_interrupts();
-	}
-	else
-	{
-		// vblank
 	}
 
 	// schedule next line (if enabled)
