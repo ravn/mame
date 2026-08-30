@@ -106,7 +106,7 @@ void i82730_device::device_reset()
 void i82730_device::set_gfx_mode(int mode)
 {
 	m_gfx_mode = mode;
-	log("i82730: graphics mode set to %d (%s)\n", mode, mode ? "graphics" : "alphanumeric");
+	LOG("i82730: graphics mode set to %d (%s)\n", mode, mode ? "graphics" : "alphanumeric");
 }
 
 
