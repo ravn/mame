@@ -52,6 +52,7 @@ i82730_device::i82730_device(const machine_config &mconfig, const char *tag, dev
 	m_cbp(0x0000),
 	m_list_switch(false),
 	m_auto_line_feed(false),
+	m_eof_hit(false),
 	m_max_dma_count(0),
 	m_lptr(0),
 	m_status(0x0000),
@@ -414,9 +415,10 @@ bool i82730_device::dscmd_endrow()
 
 bool i82730_device::dscmd_eof()
 {
-	LOGMASKED(LOG_DATASTREAM, "Executing datastream command EOF - not implemented\n");
+	LOGMASKED(LOG_DATASTREAM, "Executing datastream command EOF\n");
 
-	return false;
+	m_eof_hit = true;
+	return true;
 }
 
 bool i82730_device::dscmd_eol()
@@ -736,8 +738,9 @@ TIMER_CALLBACK_MEMBER( i82730_device::row_update )
 		// clear interrupt status flags
 		m_status &= (VDIP | DIP);
 
-		// clear field attribute mask
+		// clear field attribute mask and EOF flag
 		m_mb.field_attribute_mask = 0;
+		m_eof_hit = false;
 
 		// get listbase
 		if (m_list_switch == 0)
@@ -772,8 +775,13 @@ TIMER_CALLBACK_MEMBER( i82730_device::row_update )
 		if (m_current_row == m_cursor[0].y && lc >= m_mb.cur1strt && lc <= m_mb.cur1stp && cursor_visible())
 			cursor_x = m_cursor[0].x;
 
-		// call driver
-		m_update_row_cb(m_bitmap, m_row, lc, y - m_mb.vsyncstp, m_row_count, cursor_x);
+		// call driver (skip if row blanked by BLK_ROW or field terminated by EOF;
+		// fill the scanline with black so old bitmap pixels don't bleed through)
+		if (!m_mb.blk_row && !m_eof_hit)
+			m_update_row_cb(m_bitmap, m_row, lc, y - m_mb.vsyncstp, m_row_count, cursor_x);
+		else
+			for (int x = 0; x < m_bitmap.width(); x++)
+				m_bitmap.pix(y - m_mb.vsyncstp, x) = rgb_t::black();
 
 		// swap buffers at end of row
 		if (lc == m_mb.lpr)
@@ -785,7 +793,8 @@ TIMER_CALLBACK_MEMBER( i82730_device::row_update )
 			if (y == (m_mb.vfldstp - 1))
 				m_sptr = (read_word(m_cbp + 36) << 16) | read_word(m_cbp + 34);
 
-			load_row();
+			if (!m_eof_hit)
+				load_row();
 			m_current_row++;
 		}
 	}
@@ -797,8 +806,12 @@ TIMER_CALLBACK_MEMBER( i82730_device::row_update )
 	{
 		uint8_t lc = (y - (m_mb.vfldstp + m_mb.scroll_margin + 1)) % (m_mb.lpr + 1);
 
-		// call driver (no cursor on the status row)
-		m_update_row_cb(m_bitmap, m_row, lc, y - m_mb.vsyncstp, m_row_count, -1);
+		// call driver (no cursor on the status row; skip if field terminated by EOF)
+		if (!m_eof_hit)
+			m_update_row_cb(m_bitmap, m_row, lc, y - m_mb.vsyncstp, m_row_count, -1);
+		else
+			for (int x = 0; x < m_bitmap.width(); x++)
+				m_bitmap.pix(y - m_mb.vsyncstp, x) = rgb_t::black();
 	}
 	else
 	{

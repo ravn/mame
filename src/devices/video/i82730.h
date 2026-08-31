@@ -130,6 +130,7 @@ private:
 
 	bool m_list_switch;
 	bool m_auto_line_feed;
+	bool m_eof_hit; // set by EOF command; cleared at frame start; suppresses render + load_row for remaining rows
 	uint8_t m_max_dma_count;
 	uint32_t m_lptr;
 	uint16_t m_status;
