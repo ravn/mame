@@ -41,8 +41,6 @@ public:
 
 	// inline configuration
 	template <typename... T> void set_update_row_callback(T &&... args) { m_update_row_cb.set(std::forward<T>(args)...); }
-	void set_gfx_mode(int mode);
-
 	// Rows (scanlines) per character cell from the current mode block. The
 	// RC759 encodes its "graphics" layout here: text cells are 10 scanlines
 	// tall (lpr=9), the graphics bitmap layout is 16 (lpr=15). There is no
@@ -125,8 +123,6 @@ private:
 	bool m_mode_set;
 	int m_ca;
 	bool m_ca_latch;
-
-	int m_gfx_mode;  // 0 = alphanumeric, 1 = graphics
 
 	uint8_t m_sysbus;
 	uint32_t m_ibp; // intermediate block pointer

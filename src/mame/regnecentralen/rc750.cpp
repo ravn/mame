@@ -213,7 +213,6 @@ void rc750_state::ppi_portc_w(uint8_t data)
 	// ------10  unused on the Partner (cassette on the Piccoline)
 
 	m_kbd->enable_w(BIT(data, 7));
-	m_gfx_mode = BIT(data, 6);
 	m_nvram_bank = (data >> 4) & 0x03;
 	m_drq_source = (data >> 2) & 0x03;
 }
