@@ -58,8 +58,7 @@ public:
 		m_config(*this, "config"),
 		m_kbd(*this, "kbd"),
 		m_drq_source(0),
-		m_nvram_bank(0),
-		m_gfx_mode(0)
+		m_nvram_bank(0)
 	{ }
 
 protected:
@@ -110,7 +109,6 @@ protected:
 
 	int m_drq_source;
 	int m_nvram_bank;
-	int m_gfx_mode;
 
 	uint8_t m_rtc_read_addr = 0;
 	uint8_t m_rtc_read_data = 0;

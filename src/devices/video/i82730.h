@@ -41,7 +41,12 @@ public:
 
 	// inline configuration
 	template <typename... T> void set_update_row_callback(T &&... args) { m_update_row_cb.set(std::forward<T>(args)...); }
-	void set_gfx_mode(int mode);
+	// Rows (scanlines) per character cell from the current mode block. The
+	// RC759 encodes its "graphics" layout here: text cells are 10 scanlines
+	// tall (lpr=9), the graphics bitmap layout is 16 (lpr=15). There is no
+	// dedicated graphics bit in the 82730 mode block -- the CPU switches modes
+	// purely by loading a mode block with the taller, 35-column cell geometry.
+	uint8_t rows_per_char() const { return m_mb.lpr + 1; }
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
@@ -119,14 +124,13 @@ private:
 	int m_ca;
 	bool m_ca_latch;
 
-	int m_gfx_mode;  // 0 = alphanumeric, 1 = graphics
-
 	uint8_t m_sysbus;
 	uint32_t m_ibp; // intermediate block pointer
 	uint32_t m_cbp; // command block pointer
 
 	bool m_list_switch;
 	bool m_auto_line_feed;
+	bool m_eof_hit; // set by EOF command; cleared at frame start; suppresses render + load_row for remaining rows
 	uint8_t m_max_dma_count;
 	uint32_t m_lptr;
 	uint16_t m_status;
