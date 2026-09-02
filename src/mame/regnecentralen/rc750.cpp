@@ -74,6 +74,9 @@ public:
 
 	void rc750(machine_config &config);
 
+protected:
+	virtual void machine_start() override ATTR_COLD;
+
 private:
 	required_device<fd1797_device> m_fdc;
 	required_device_array<floppy_connector, 2> m_floppy;
@@ -99,6 +102,11 @@ void rc750_state::rc750_map(address_map &map)
 {
 	map(0x00000, 0x3ffff).ram();
 	map(0x40000, 0x5ffff).ram();
+	// The Partner selftest sets its stack up in segment F000 (SS=F000,
+	// SP=8000) and clears F000:0000-F000:7FFF first, so it expects RAM at
+	// 0xf0000-0xf7fff -- a different memory layout from the Piccoline.
+	// (Found by disassembling the reset-time spin at F951:07A0.)
+	map(0xf0000, 0xf7fff).ram();
 	map(0xd0000, 0xd7fff).mirror(0x08000).ram().share("vram");
 	map(0xe8000, 0xeffff).mirror(0x10000).rom().region("bios", 0);
 }
@@ -116,7 +124,14 @@ void rc750_state::rc750_io(address_map &map)
 	map(0x070, 0x077).mirror(0x08).rw(m_ppi, FUNC(i8255_device::read), FUNC(i8255_device::write)).umask16(0x00ff);
 	map(0x080, 0x0ff).rw(FUNC(rc750_state::nvram_r), FUNC(rc750_state::nvram_w)).umask16(0x00ff);
 	map(0x180, 0x1bf).rw(FUNC(rc750_state::palette_r), FUNC(rc750_state::palette_w)).umask16(0x00ff);
-	map(0x230, 0x231).w(FUNC(rc750_state::txt_irst_w));
+	// 82730 CRT: like the Piccoline the Partner drives channel-attention at
+	// 0x240 (mailbox handshake at F000:2000, seen at F951:08DA "out 240h").
+	// 0x210 is pulsed *early* during video init, before the command block is
+	// built -- it is the 82730 reset (irst), NOT channel-attention: mapping
+	// it as a CA fires a premature attention that reads a garbage command
+	// (0x0c) and hangs the chip. The real command block (CBP=F2000, first
+	// command 0x04 MODE SET) is kicked by the 0x240 CA.
+	map(0x210, 0x211).w(FUNC(rc750_state::txt_irst_w));
 	map(0x240, 0x241).w(FUNC(rc750_state::txt_ca_w));
 	// Partner-specific ports (PROVISIONAL - not verified against the guide)
 	map(0x280, 0x287).rw(m_fdc, FUNC(fd1797_device::read), FUNC(fd1797_device::write)).umask16(0x00ff);
@@ -219,6 +234,29 @@ void rc750_state::ppi_portc_w(uint8_t data)
 
 
 //**************************************************************************
+//  MACHINE
+//**************************************************************************
+
+void rc750_state::machine_start()
+{
+	rc75x_state::machine_start();
+
+	// The Partner's character generator lives in the boot ROM (the selftest
+	// never loads a soft font into the 82730 pixel RAM, so the shared m_vram
+	// path renders nothing). The font is a table of 47 tagged 17-byte records
+	// starting at ROM offset 0x7f, covering ASCII 0x2a..0x5a (the diagnostic
+	// ROM is upper-case only); each record is [ASCII code][15 rows of 7-px
+	// glyph, bit6 = leftmost][pad]. Derived by dumping RAM+ROM and matching
+	// the rendered glyphs (R,C,7,5,0,A,T,E,S,V) to the "RC750 TEST" banner.
+	init_rom_font(memregion("bios")->base() + 0x7f, 47, 17, 1);
+
+	// 80 columns across the 720 px active field (mode block hfldstrt=13,
+	// hfldstp=58, *16) -> 9 px cell pitch; the 7 px glyph leaves a 2 px gap.
+	m_text_hpitch = 9;
+}
+
+
+//**************************************************************************
 //  MACHINE DEFINITIONS
 //**************************************************************************
 
@@ -229,7 +267,7 @@ static void rc750_floppies(device_slot_interface &device)
 
 void rc750_state::rc750(machine_config &config)
 {
-	I80186(config, m_maincpu, 6'000'000);
+	I80186(config, m_maincpu, 8'000'000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &rc750_state::rc750_map);
 	m_maincpu->set_addrmap(AS_IO, &rc750_state::rc750_io);
 
@@ -261,9 +299,13 @@ void rc750_state::rc750(machine_config &config)
 //**************************************************************************
 
 ROM_START( rc750 )
-	// No Partner boot ROM dump is available yet.
+	// Partner boot ROM: two byte-wide 16 KB EPROMs on the 16-bit 80186 bus.
+	// ROD398 = even/low byte, ROD399 = odd/high byte.  Interleaved this gives
+	// the reset vector at 0xffff0 as FA EA 00 00 F8 FF (CLI; JMP FFF8:0000),
+	// matching the RC759 layout.
 	ROM_REGION16_LE(0x8000, "bios", 0)
-	ROM_LOAD("rc750.rom", 0x0000, 0x8000, NO_DUMP)
+	ROM_LOAD16_BYTE("rod398.bin", 0x0000, 0x4000, CRC(37bb9bf8) SHA1(bc9ea2faf38bcff7b0cf6cd4382908758a187938))
+	ROM_LOAD16_BYTE("rod399.bin", 0x0001, 0x4000, CRC(53c8b085) SHA1(53bfa9d77549281aa8266cb3a20b0aa84a0e6dc4))
 ROM_END
 
 

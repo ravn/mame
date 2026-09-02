@@ -874,8 +874,10 @@ void i82730_device::ca_w(int state)
 
 	m_ca = state;
 
-	// check ca every cycle if the display isn't active
-	if (m_ca_latch && ((m_status & DIP) == 0))
+	// check ca every cycle if the display isn't active; once initialised the
+	// CPU can still issue commands (e.g. READ STATUS) while the display runs,
+	// so honour CA regardless of DIP after init. [rc750 experiment]
+	if (m_ca_latch && (m_initialized || ((m_status & DIP) == 0)))
 	{
 		if (!m_initialized)
 		{
