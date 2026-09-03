@@ -403,6 +403,18 @@ void rc750_state::machine_start()
 	// from the RC759 soft font so booted CP/M text is readable (ravn/mame#48).
 	init_rc759_font();
 
+	// NOTE: on the real machine the CCP/M XIOS loads a full 9x14 soft font into
+	// its 4-bank screen character generator one character at a time via
+	// INT 0x28, AL=52 ("define_font"; proven from the RcFont disk CHARSET source:
+	// reg.ax:=define_font(52); reg.cx:=(dest-1)*256+char; reg.ds:=seg(charfont);
+	// reg.dx:=ofs(charfont); swint($28,reg)). The SW1500 *install* disk we boot
+	// does NOT issue that define_font sweep -- it relies on the boot-ROM's
+	// upper-case-only font, so its lowercase menu text is blank on real hardware.
+	// A production CCP/M system disk would load the real font; capturing it needs
+	// an execution-level hook on the INT 0x28 handler (a memory read tap does not
+	// see the 80186's opcode/IVT fetches) plus such a disk. Until then the RC759
+	// backfill above stands in for the missing glyphs (ravn/mame#48).
+
 	// 80 columns across the 720 px active field (mode block hfldstrt=13,
 	// hfldstp=58, *16) -> 9 px cell pitch; the 7 px glyph leaves a 2 px gap.
 	m_text_hpitch = 9;
