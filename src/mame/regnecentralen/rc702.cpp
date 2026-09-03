@@ -807,11 +807,15 @@ ROM_START( rc702 )
 	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF )
 	ROM_LOAD( "roa375.ic66", 0x0000, 0x0800, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084) )
 
-	// IC65 line-program ROM (ROB388 on MIC705), undumped.  Optional: drop a
-	// prom1.ic65 into the rom path to supply one (e.g. the CP/NOS line
-	// program); otherwise the region stays 0xff.
+	// IC65 line-program ROM socket (ROB388 on MIC705), undumped -- empty by
+	// default: the region stays 0xff (an unprogrammed EPROM), which the boot ROM
+	// reads as "no line program installed". The ROM_LOAD_OPTIONAL below is
+	// commented out on purpose: MAME shows a startup "bad ROM dump" warning for a
+	// declared-but-absent optional ROM (romload counts it as a warning). To run a
+	// CP/NOS line program, uncomment it and drop a prom1.ic65 into the rompath,
+	// or add a real ROM_LOAD with CRC/SHA1 once that EPROM is dumped.
 	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF )
-	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
+	//ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
 
 	ROM_REGION( 0x1000, "chargen", 0 )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) ) // char
@@ -826,8 +830,10 @@ ROM_START( rc703 )
 	ROM_SYSTEM_BIOS(1, "rc700", "RC700")
 	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800, CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(1))
 
+	// empty PROM1 line-program socket by default (see rc702 above); commented
+	// out to avoid the startup "bad ROM dump" warning.
 	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF )
-	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
+	//ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
 
 	ROM_REGION( 0x1000, "chargen", 0 )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) )
