@@ -349,10 +349,21 @@ void i82730_device::execute_command()
 	// LOAD CBP
 	case 0x05:
 		LOGMASKED(LOG_COMMANDS, "Executing command LOAD CBP\n");
+		// The block that carried LOAD CBP is itself complete once the new
+		// pointer has been latched, so clear ITS busy flag now -- the CPU polls
+		// the busy bit of the block it wrote the command into (here the mailbox
+		// command block), not the block LOAD CBP points at. Then load the new
+		// CBP and execute it, which clears the new block's own busy in turn.
+		// Previously only the post-switch m_cbp (the new block) had its busy
+		// cleared, so a guest that issued LOAD CBP through a fixed mailbox and
+		// then polled that mailbox's busy bit (RC750 Partner selftest, test 16
+		// "Dataskaerm controller") spun forever. Return afterwards so the
+		// trailing busy-clear below does not redundantly touch the new block.
+		write_word(m_cbp, read_word(m_cbp) & 0xff00);
 		m_cbp = (read_word(m_cbp + 16) << 16) | read_word(m_cbp + 14);
 		LOGMASKED(LOG_COMMANDS, "--> New value = %08x\n", m_cbp);
 		execute_command();
-		break;
+		return;
 
 	// LOAD INTMASK
 	case 0x06:
