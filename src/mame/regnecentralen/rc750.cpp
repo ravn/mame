@@ -110,6 +110,23 @@ private:
 	uint8_t ppi_portb_r();
 	void ppi_portc_w(uint8_t data);
 
+	// The Partner selects the NVM block (0..3) by writing bits 6-7 of PPI port A
+	// (io 0x70): the diagnostic ROM's address_block routine (called by every
+	// nvm_read/nvm_write) does a read-modify-write there -- Programmer's Guide
+	// 3.2, "write_nvm". Port A is an OUTPUT latch on the Partner (the selftest's
+	// walking-bit test 18 writes port A and reads the value back), so capture
+	// the block from the port-A output callback. The shared rc75x base instead
+	// latches the block from PPI port C bits 4-5 (the Piccoline wiring), which
+	// the Partner never drives, so without this the block stays wherever port C
+	// last left it (2) and the checksum test reads block 2 three times -> ERR 19.
+	void nvm_block_w(uint8_t data);
+
+	// Partner NVM default image. The selftest requires sum(block 0,1,2) == 0xAA
+	// (Programmer's Guide 3.2); byte 25 is the load device ('A'). The shared
+	// rc75x nvram_init seeds a Piccoline image whose 96-byte sum is 0x2A, so the
+	// Partner needs its own seed.
+	void nvram_init_partner(nvram_device &nvram, void *data, size_t size);
+
 	void rc750_io(address_map &map) ATTR_COLD;
 	void rc750_map(address_map &map) ATTR_COLD;
 };
@@ -321,13 +338,36 @@ void rc750_state::ppi_portc_w(uint8_t data)
 {
 	// 7-------  keyboard enable
 	// -6------  gfx mode
-	// --54----  nvram bank
+	// --54----  (Piccoline nvram bank; the Partner selects the block via port A
+	//            instead -- see nvm_block_w -- so do NOT latch the block here)
 	// ----32--  drq source
 	// ------10  unused on the Partner (cassette on the Piccoline)
 
 	m_kbd->enable_w(BIT(data, 7));
-	m_nvram_bank = (data >> 4) & 0x03;
 	m_drq_source = (data >> 2) & 0x03;
+}
+
+void rc750_state::nvm_block_w(uint8_t data)
+{
+	// PPI port-A output callback. address_block writes bits 6-7 = NVM block
+	// number (0..3); the 8255 itself handles the walking-bit readback (test 18).
+	m_nvram_bank = (data >> 6) & 0x03;
+}
+
+void rc750_state::nvram_init_partner(nvram_device &nvram, void *data, size_t size)
+{
+	// Blank Partner NVM with a valid system-parameter checksum. The selftest
+	// (Programmer's Guide 3.2) sums NVM blocks 0,1,2 (96 bytes) modulo 256 and
+	// requires 0xAA. Byte 25 is the load device ('A' = boot from floppy drive
+	// A); byte 0 is the checksum byte, chosen so the 96-byte sum is 0xAA
+	// (0xAA - 0x41 = 0x69). All other parameters default to 0.
+	memset(data, 0x00, size);
+	uint8_t *p = reinterpret_cast<uint8_t *>(data);
+	if (size > 25)
+	{
+		p[25] = 0x41; // load device = 'A'
+		p[0]  = 0x69; // checksum byte: 0x69 + 0x41 == 0xAA
+	}
 }
 
 
@@ -372,8 +412,13 @@ void rc750_state::rc750(machine_config &config)
 	// shared 80186/8259/8255-slave/82730/rtc/nvm/sound/keyboard core
 	add_common_devices(config);
 
+	// The shared core seeds a Piccoline NVM image (96-byte sum 0x2A); the
+	// Partner selftest wants sum 0xAA, so override the seed with a Partner image.
+	m_nvram->set_custom_handler(FUNC(rc750_state::nvram_init_partner));
+
 	I8255(config, m_ppi);
 	m_ppi->in_pa_callback().set(FUNC(rc750_state::ppi_porta_r));
+	m_ppi->out_pa_callback().set(FUNC(rc750_state::nvm_block_w));
 	m_ppi->in_pb_callback().set(FUNC(rc750_state::ppi_portb_r));
 	m_ppi->out_pc_callback().set(FUNC(rc750_state::ppi_portc_w));
 
