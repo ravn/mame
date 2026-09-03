@@ -281,14 +281,13 @@ uint8_t rc750_state::fdc_sense_r()
 
 void rc750_state::fdc_ctrl_w(uint8_t data)
 {
-	// FDC/system control latch at 0x210 (PROVISIONAL bit map). Observed writes:
-	// 0x40 idle, 0x42/0x45 select the data rate in the read path (branch on
-	// [30h]), 0x46/0x47 during drive detect. Bit6 is always set (FDC enable);
-	// treat any bit6-set write as "select drive 0, motor on" so the WD1797
-	// reports READY, and use bit0 as the density select (0x45 -> bit0 set).
+	// FDC/system control latch at 0x210.  Bit6 = FDC enable/motor (always set on
+	// the active writes 0x42/0x45/0x46/0x47 for drive A and 0x4a/0x4b/0x4e/0x4f
+	// for drive B), bit3 = drive select (0 = drive A, 1 = drive B -- found by
+	// tracing 0x210 during DIR A: vs DIR B:), bit0 = data-rate/density select.
 	m_fdc_ctrl = data;
 
-	floppy_image_device *fl = m_floppy[0]->get_device();
+	floppy_image_device *fl = m_floppy[BIT(data, 3)]->get_device();
 	m_fdc->set_floppy(fl);
 	if (fl)
 		fl->mon_w(BIT(data, 6) ? 0 : 1); // motor on while the FDC is enabled
@@ -479,4 +478,4 @@ ROM_END
 // This models the RC750/23 central unit: 2x 1200 KB floppy, 512 KB RAM, no
 // Winchester (DDHF Bits:30005001). The /20 adds a 20 MB WD, /22 has one floppy,
 // /21 none -- all otherwise identical (same 80186/ROM/512 KB base).
-COMP( 1985, rc750, 0,      0,      rc750,   rc750, rc750_state, empty_init, "Regnecentralen", "RC750/23 Partner", MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
+COMP( 1985, rc750, 0,      0,      rc750,   rc750, rc750_state, empty_init, "Regnecentralen", "RC750/23 Partner", MACHINE_SUPPORTS_SAVE )
