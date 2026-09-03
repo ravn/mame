@@ -395,27 +395,19 @@ void rc750_state::machine_start()
 {
 	rc75x_state::machine_start();
 
-	// The Partner's character generator lives in the boot ROM (the selftest
-	// never loads a soft font into the 82730 pixel RAM, so the shared m_vram
-	// path renders nothing). The font is a table of 47 tagged 17-byte records
-	// starting at ROM offset 0x7f, covering ASCII 0x2a..0x5a (the diagnostic
-	// ROM is upper-case only); each record is [ASCII code][15 rows of 7-px
-	// glyph, bit6 = leftmost][pad]. Derived by dumping RAM+ROM and matching
-	// the rendered glyphs (R,C,7,5,0,A,T,E,S,V) to the "RC750 TEST" banner.
-	// The renderer reads the real firmware-loaded 9x14 font from the pixel
-	// memory (0xF0000, see txt_update_row); init_rom_font is kept only to select
-	// the Partner (ROM-font) render path and as a fallback for the handful of
-	// glyphs present in the boot ROM.
+	// Character generator. The real 9x14 font is the pixel memory at 0xF0000:
+	// the boot ROM loads the full standard font (upper- and lower-case + frame
+	// glyphs) there at POST -- a routine at ROM offset 0x1CE2 (runs @F9CE2,
+	// ~t=0.85s, right after it RAM-tests the pixel memory) copies the glyphs in,
+	// so it is present before the banner and long before any disk boots. The
+	// renderer reads glyphs straight from it via m_pixmem (see txt_update_row);
+	// the CCP/M XIOS INT-28h define_font (AL=52) call only edits it at runtime
+	// (soft fonts / 4 alternative banks, Programmer's Guide 4.3) and is not
+	// needed here. init_rom_font is kept ONLY to select the Partner ROM-font
+	// render path (m_use_rom_font) -- its glyph table (47 upper-case records at
+	// ROM offset 0x7f, format [ASCII][15x 7-px rows, bit6=left][pad]) is just a
+	// fallback for any character not yet defined in the pixel memory.
 	init_rom_font(memregion("bios")->base() + 0x7f, 47, 17, 1);
-
-	// The full 9x14 standard font (with lowercase and frame glyphs) is loaded by
-	// the boot ROM itself, into the 0xF0000 pixel memory, at POST -- a routine at
-	// ROM offset 0x1CE2 (runs @F9CE2, ~t=0.85s, right after it RAM-tests the pixel
-	// memory) copies the glyphs there. So it is present before the banner and long
-	// before any disk boots; the renderer just reads it back from m_pixmem. The
-	// CCP/M XIOS INT-28h define_font (AL=52) function edits it at runtime (soft
-	// fonts / the 4 alternative banks, Programmer's Guide 4.3) but is not needed
-	// for the default font.
 
 	// 80 columns across the 720 px active field (mode block hfldstrt=13,
 	// hfldstp=58, *16) -> 9 px cell pitch; the 7 px glyph leaves a 2 px gap.
