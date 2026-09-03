@@ -204,7 +204,12 @@ void rc750_state::rc750_io(address_map &map)
 
 static INPUT_PORTS_START( rc750 )
 	PORT_START("config")
-	PORT_CONFNAME(0x20, 0x00, "Monitor Type")
+	// The Partner shipped with a monochrome amber (P3) monitor. Defaulting to
+	// "Color" makes the firmware treat the display-buffer attribute byte as
+	// foreground/background colour nibbles, so text with fg colour 0 renders
+	// invisible and the intensity/bold bit is lost. Default to Monochrome so the
+	// attribute byte is interpreted as mono intensity/highlight instead.
+	PORT_CONFNAME(0x20, 0x20, "Monitor Type")
 	PORT_CONFSETTING(0x00, "Color")
 	PORT_CONFSETTING(0x20, "Monochrome")
 	PORT_CONFNAME(0x40, 0x00, "Monitor Frequency")

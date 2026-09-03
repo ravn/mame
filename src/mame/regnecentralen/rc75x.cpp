@@ -55,6 +55,15 @@ I82730_UPDATE_ROW( rc75x_state::txt_update_row )
 			const uint8_t *glyph = m_font_glyph[data[i] & 0x7f];
 			uint8_t bits = (glyph && lc < 15) ? glyph[lc] : 0;
 
+			// The display word's high byte is the character attribute. On a
+			// monochrome monitor the Partner drives bit 6 (word bit 14) as the
+			// high-intensity ("bold"/highlight) line -- the diagnostic banner and
+			// normal menu text carry it. Render intensified cells in a brighter
+			// amber, plain cells at the normal level. (Colour-monitor attribute
+			// decoding -- fg/bg colour nibbles -- is a separate feature, #47.)
+			const bool intensify = BIT(data[i], 14);
+			const rgb_t on_col = intensify ? rgb_t(0xff, 0xe0, 0x60) : rgb_t(0xff, 0xb0, 0x00);
+
 			// 7-px glyph left-aligned in an m_text_hpitch-wide cell; the extra
 			// columns are the inter-character gap (blank, or reversed under the
 			// cursor so the cell block stays solid).
@@ -63,7 +72,7 @@ I82730_UPDATE_ROW( rc75x_state::txt_update_row )
 				bool on = (p < 7) ? BIT(bits, 6 - p) : false;
 				if (cursor_here)
 					on = !on; // reverse-video the cell under the cursor
-				bitmap.pix(y, i * m_text_hpitch + p) = on ? rgb_t(0xff, 0xb0, 0x00) : rgb_t(0x1a, 0x12, 0x00);
+				bitmap.pix(y, i * m_text_hpitch + p) = on ? on_col : rgb_t(0x1a, 0x12, 0x00);
 			}
 		}
 		return;
