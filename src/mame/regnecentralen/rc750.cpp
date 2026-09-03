@@ -85,13 +85,26 @@ private:
 	static void floppy_formats(format_registration &fr);
 	void floppy_control_w(uint8_t data);
 
-	// Partner floppy drive-select/control latch (0x260) and sense input (0x220),
-	// reverse-engineered from the boot ROM (the drive-detect at FB3A5 writes a
-	// select code to 0x260 and reads bit4 = "diskette present" for that drive).
-	uint8_t fdc_drive_r();
-	void fdc_drive_w(uint8_t data);
 	uint8_t fdc_sense_r();
-	uint8_t m_fdc_drive_sel = 0;
+
+	// Centronics printer port latches at 0x250 (data) / 0x260 (control). The
+	// selftest verifies these are read/write (error 24/25 = printer control/data
+	// signal test). Modelled as plain readback latches so a bare machine passes.
+	uint8_t prn_data_r();
+	void prn_data_w(uint8_t data);
+	uint8_t prn_ctrl_r();
+	void prn_ctrl_w(uint8_t data);
+	uint8_t m_prn_data = 0;
+	uint8_t m_prn_ctrl = 0;
+
+	// Partner FDC/system control latch at 0x210 (write) with status read-back
+	// (the boot ROM writes 0x40|bits and later reads bits 2-3 to verify). This
+	// is NOT the 82730 reset -- that lives at 0x230 on both Partner and
+	// Piccoline. The latch selects the WD1797 floppy, spins the motor and picks
+	// the data rate (single/double density) so the drive reports READY.
+	uint8_t fdc_ctrl_r();
+	void fdc_ctrl_w(uint8_t data);
+	uint8_t m_fdc_ctrl = 0;
 
 	uint8_t ppi_porta_r();
 	uint8_t ppi_portb_r();
@@ -133,23 +146,36 @@ void rc750_state::rc750_io(address_map &map)
 	map(0x080, 0x0ff).rw(FUNC(rc750_state::nvram_r), FUNC(rc750_state::nvram_w)).umask16(0x00ff);
 	map(0x180, 0x1bf).rw(FUNC(rc750_state::palette_r), FUNC(rc750_state::palette_w)).umask16(0x00ff);
 	// 82730 CRT: like the Piccoline the Partner drives channel-attention at
-	// 0x240 (mailbox handshake at F000:2000, seen at F951:08DA "out 240h").
-	// 0x210 is pulsed *early* during video init, before the command block is
-	// built -- it is the 82730 reset (irst), NOT channel-attention: mapping
-	// it as a CA fires a premature attention that reads a garbage command
-	// (0x0c) and hangs the chip. The real command block (CBP=F2000, first
-	// command 0x04 MODE SET) is kicked by the 0x240 CA.
-	map(0x210, 0x211).w(FUNC(rc750_state::txt_irst_w));
+	// 0x240 (mailbox handshake at F000:2000, seen at F951:08DA "out 240h"), and
+	// the 82730 reset/interrupt-ack (irst) at 0x230 -- same port as the
+	// Piccoline. The boot ROM's 82730 SINT handler writes 0x230 to ack each
+	// frame interrupt; the mailbox handshake is kicked by the 0x240 CA.
+	map(0x230, 0x231).w(FUNC(rc750_state::txt_irst_w));
 	map(0x240, 0x241).w(FUNC(rc750_state::txt_ca_w));
+	// 0x210 is the FDC/system control latch (NOT the 82730 reset -- that guess
+	// mis-routed the WD1797's drive-select/motor writes to the 82730, so the
+	// drive never became ready and the selftest hung after the banner). The ROM
+	// writes 0x40|<bits> here (0x42/0x45 pick the data rate, 0x46/0x47 during
+	// drive detect) and reads bits 2-3 back to verify.
+	map(0x210, 0x211).rw(FUNC(rc750_state::fdc_ctrl_r), FUNC(rc750_state::fdc_ctrl_w)).umask16(0x00ff);
 	// WD1797 FDC at 0x200-0x206 (status/cmd, track, sector, data on even bytes).
 	// Verified by disassembling the boot ROM: the selftest polls 0x200 bit0 (WD
 	// BUSY) at FD72E and writes the Force-Interrupt command 0xD8 to 0x200. The
 	// earlier 0x280 guess (from the Piccoline) was wrong for the Partner.
 	map(0x200, 0x207).rw(m_fdc, FUNC(fd1797_device::read), FUNC(fd1797_device::write)).umask16(0x00ff);
-	// Floppy sense input (config jumpers in bits 6-7, ready in bit4; active low)
-	// and the drive-select/control latch (drive-detect probes bit4 per drive).
+	// Floppy sense input (config jumpers in bits 6-7, ready in bit4; active low).
 	map(0x220, 0x221).r(FUNC(rc750_state::fdc_sense_r)).umask16(0x00ff);
-	map(0x260, 0x261).rw(FUNC(rc750_state::fdc_drive_r), FUNC(rc750_state::fdc_drive_w)).umask16(0x00ff);
+	// Centronics printer port: data register 0x250, control register 0x260.
+	// The selftest's "printer port" test (service manual Bits:30002753, error 24
+	// = control signals, error 25 = data signals) writes a walking-bit pattern
+	// to 0x250 and expects it to read back, and writes 0x260 checking bits 5-6
+	// read back -- i.e. the port latches must be read/write. A working port
+	// reads its own latch back (the readback lines are internal to the latch,
+	// not gated on an attached printer), so model both as plain readback
+	// latches; leaving them unmapped simulated a broken port and hung POST at
+	// error 25 after the banner.
+	map(0x250, 0x251).rw(FUNC(rc750_state::prn_data_r), FUNC(rc750_state::prn_data_w)).umask16(0x00ff);
+	map(0x260, 0x261).rw(FUNC(rc750_state::prn_ctrl_r), FUNC(rc750_state::prn_ctrl_w)).umask16(0x00ff);
 	map(0x2a0, 0x2a7).rw(m_sio, FUNC(i8274_device::ba_cd_r), FUNC(i8274_device::ba_cd_w)).umask16(0x00ff);
 //  map(0x2c0, 0x2cf) SCSI host adapter (not emulated)
 }
@@ -193,28 +219,28 @@ void rc750_state::floppy_control_w(uint8_t data)
 	m_fdc->dden_w(BIT(data, 5));
 }
 
-void rc750_state::fdc_drive_w(uint8_t data)
+void rc750_state::prn_data_w(uint8_t data)
 {
-	// Drive-select/control latch at 0x260 (PROVISIONAL - reverse-engineered).
-	// The boot ROM's drive detect writes a select code and reads bit4 back to
-	// see whether that drive holds a diskette. Select the WD1797's floppy and
-	// spin the motor whenever a drive is addressed.
-	logerror("fdc_drive_w: %02x\n", data);
-	m_fdc_drive_sel = data;
-
-	floppy_image_device *fl = m_floppy[BIT(data, 0)]->get_device();
-	m_fdc->set_floppy(fl);
-	if (fl) fl->mon_w(0); // motor on
+	// Centronics printer data latch at 0x250. The selftest writes a walking-bit
+	// pattern and reads it straight back (error 25 = data-signal test).
+	m_prn_data = data;
 }
 
-uint8_t rc750_state::fdc_drive_r()
+uint8_t rc750_state::prn_data_r()
 {
-	// bit4 = "diskette present in the selected drive". The detect sequence
-	// writes 0 (expects bit4 clear) then 2 (expects bit4 set) -- so only report
-	// present when the select code has bit1 set and an image is mounted.
-	floppy_image_device *fl = m_floppy[0]->get_device();
-	bool present = BIT(m_fdc_drive_sel, 1) && fl && fl->exists();
-	return present ? 0x10 : 0x00;
+	return m_prn_data;
+}
+
+void rc750_state::prn_ctrl_w(uint8_t data)
+{
+	// Centronics printer control latch at 0x260. The selftest writes control
+	// codes and checks bits 5-6 read back (error 24 = control-signal test).
+	m_prn_ctrl = data;
+}
+
+uint8_t rc750_state::prn_ctrl_r()
+{
+	return m_prn_ctrl;
 }
 
 uint8_t rc750_state::fdc_sense_r()
@@ -223,6 +249,30 @@ uint8_t rc750_state::fdc_sense_r()
 	// jumpers; bit4 is a ready line the ROM tests after a 'not al' and wants to
 	// see set (=> the pin must be low). Clear bit4, leave the rest high.
 	return 0xef;
+}
+
+void rc750_state::fdc_ctrl_w(uint8_t data)
+{
+	// FDC/system control latch at 0x210 (PROVISIONAL bit map). Observed writes:
+	// 0x40 idle, 0x42/0x45 select the data rate in the read path (branch on
+	// [30h]), 0x46/0x47 during drive detect. Bit6 is always set (FDC enable);
+	// treat any bit6-set write as "select drive 0, motor on" so the WD1797
+	// reports READY, and use bit0 as the density select (0x45 -> bit0 set).
+	m_fdc_ctrl = data;
+
+	floppy_image_device *fl = m_floppy[0]->get_device();
+	m_fdc->set_floppy(fl);
+	if (fl)
+		fl->mon_w(BIT(data, 6) ? 0 : 1); // motor on while the FDC is enabled
+
+	m_fdc->dden_w(BIT(data, 0)); // single/double density
+}
+
+uint8_t rc750_state::fdc_ctrl_r()
+{
+	// The ROM reads 0x210 back and masks bits 2-3 to verify the last write took
+	// effect; return the latched value so write-then-verify is consistent.
+	return m_fdc_ctrl;
 }
 
 
