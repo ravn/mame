@@ -18,8 +18,57 @@
 //  VIDEO EMULATION (Intel 82730)
 //**************************************************************************
 
+void rc75x_state::init_rom_font(const uint8_t *table, unsigned records, unsigned stride, unsigned glyph_off)
+{
+	// Each record is self-identifying: byte 0 holds the ASCII code the glyph
+	// draws. The table is not densely code-indexable (the Partner ROM omits a
+	// few punctuation glyphs, e.g. ';' and '@'), so key off the tag rather
+	// than assume base + code*stride.
+	for (auto &g : m_font_glyph)
+		g = nullptr;
+
+	for (unsigned i = 0; i < records; i++)
+	{
+		const uint8_t *rec = table + i * stride;
+		uint8_t code = rec[0];
+		if (code < 128)
+			m_font_glyph[code] = rec + glyph_off;
+	}
+
+	m_use_rom_font = true;
+}
+
+
 I82730_UPDATE_ROW( rc75x_state::txt_update_row )
 {
+	// RC750 Partner: resolve each cell from the ROM character generator. The
+	// 82730 DMA'd 16-bit words from the display buffer; the low byte is the
+	// ASCII code, the high byte an attribute (ignored for now). The Partner's
+	// text cell is 15 scan lines (lpr=14) -- taller than the Piccoline's 10 --
+	// which is why the m_vram path's rows_per_char>=12 gfx heuristic would
+	// mis-route it; branch on the ROM font first.
+	if (m_use_rom_font)
+	{
+		for (int i = 0; i < x_count; i++)
+		{
+			bool cursor_here = (cursor == i);
+			const uint8_t *glyph = m_font_glyph[data[i] & 0x7f];
+			uint8_t bits = (glyph && lc < 15) ? glyph[lc] : 0;
+
+			// 7-px glyph left-aligned in an m_text_hpitch-wide cell; the extra
+			// columns are the inter-character gap (blank, or reversed under the
+			// cursor so the cell block stays solid).
+			for (int p = 0; p < m_text_hpitch; p++)
+			{
+				bool on = (p < 7) ? BIT(bits, 6 - p) : false;
+				if (cursor_here)
+					on = !on; // reverse-video the cell under the cursor
+				bitmap.pix(y, i * m_text_hpitch + p) = on ? rgb_t(0xff, 0xb0, 0x00) : rgb_t(0x1a, 0x12, 0x00);
+			}
+		}
+		return;
+	}
+
 	// The RC759 runs the 82730 in one of two configurations, selected by the
 	// mode block the CPU loads (there is no dedicated graphics bit -- the CPU
 	// swaps the whole mode block): text is 80 char/row with 10-scanline cells

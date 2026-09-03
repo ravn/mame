@@ -88,6 +88,22 @@ protected:
 	I82730_UPDATE_ROW(gfx_update_row);
 	void txt_ca_w(uint16_t data);
 	void txt_irst_w(uint16_t data);
+
+	// ROM character generator (RC750 Partner). Unlike the Piccoline, whose
+	// selftest loads a soft font into the 82730 pixel RAM (m_vram), the
+	// Partner keeps its font in the boot ROM as tagged 17-byte records
+	// [ASCII code][15 scanline rows, 7 px wide, bit6 = leftmost][pad]. Build
+	// a code->glyph lookup once so the renderer can resolve each cell by the
+	// ASCII code the 82730 DMA'd from the display buffer. See rc750.cpp.
+	void init_rom_font(const uint8_t *table, unsigned records, unsigned stride, unsigned glyph_off);
+	bool m_use_rom_font = false;
+	const uint8_t *m_font_glyph[128] = { };
+	// Horizontal cell pitch in px for the ROM-font path. The 7-px glyph is
+	// left-aligned in this cell, so a pitch > 7 yields the inter-character
+	// spacing (the 82730 char box = glyph dots + blank clocks). The Partner's
+	// mode block programs an active field of (hfldstp-hfldstrt)*16 = 720 px for
+	// 80 columns -> 9 px/cell (2 px gap). Set per machine in machine_start.
+	int m_text_hpitch = 9;
 	uint8_t palette_r(offs_t offset);
 	void palette_w(offs_t offset, uint8_t data);
 
