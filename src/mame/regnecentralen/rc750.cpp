@@ -138,8 +138,10 @@ private:
 
 void rc750_state::rc750_map(address_map &map)
 {
-	map(0x00000, 0x3ffff).ram();
-	map(0x40000, 0x5ffff).ram();
+	// 512 KB base RAM (RC750/23 central unit spec, DDHF Bits:30005001). All four
+	// Partner central-unit models (/20 /21 /22 /23) ship 512 KB; MF101 adds a
+	// second 512 KB. (Was 384 KB, inherited from the RC759 Piccoline.)
+	map(0x00000, 0x7ffff).ram();
 	// The Partner selftest sets its stack up in segment F000 (SS=F000,
 	// SP=8000) and clears F000:0000-F000:7FFF first, so it expects RAM at
 	// 0xf0000-0xf7fff -- a different memory layout from the Piccoline.
@@ -481,4 +483,7 @@ ROM_END
 //**************************************************************************
 
 //    YEAR  NAME   PARENT  COMPAT  MACHINE  INPUT  CLASS        INIT        COMPANY           FULLNAME         FLAGS
-COMP( 1985, rc750, 0,      0,      rc750,   rc750, rc750_state, empty_init, "Regnecentralen", "RC750 Partner", MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
+// This models the RC750/23 central unit: 2x 1200 KB floppy, 512 KB RAM, no
+// Winchester (DDHF Bits:30005001). The /20 adds a 20 MB WD, /22 has one floppy,
+// /21 none -- all otherwise identical (same 80186/ROM/512 KB base).
+COMP( 1985, rc750, 0,      0,      rc750,   rc750, rc750_state, empty_init, "Regnecentralen", "RC750/23 Partner", MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
