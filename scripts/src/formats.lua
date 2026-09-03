@@ -1751,13 +1751,13 @@ end
 
 --------------------------------------------------
 --
---@src/lib/formats/rc759_dsk.h,FORMATS["RC759_DSK"] = true
+--@src/lib/formats/rc75x_dsk.h,FORMATS["RC75X_DSK"] = true
 --------------------------------------------------
 
-if opt_tool(FORMATS, "RC759_DSK") then
+if opt_tool(FORMATS, "RC75X_DSK") then
 	files {
-		MAME_DIR.. "src/lib/formats/rc759_dsk.cpp",
-		MAME_DIR.. "src/lib/formats/rc759_dsk.h",
+		MAME_DIR.. "src/lib/formats/rc75x_dsk.cpp",
+		MAME_DIR.. "src/lib/formats/rc75x_dsk.h",
 	}
 end
 

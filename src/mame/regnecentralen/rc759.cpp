@@ -66,7 +66,7 @@
 #include "bus/isbx/isbx.h"
 #include "imagedev/cassette.h"
 #include "imagedev/floppy.h"
-#include "formats/rc759_dsk.h"
+#include "formats/rc75x_dsk.h"
 #include "speaker.h"
 
 
@@ -212,7 +212,7 @@ INPUT_PORTS_END
 void rc759_state::floppy_formats(format_registration &fr)
 {
 	fr.add_mfm_containers();
-	fr.add(FLOPPY_RC759_FORMAT);
+	fr.add(FLOPPY_RC75X_FORMAT);
 }
 
 void rc759_state::floppy_control_w(uint8_t data)

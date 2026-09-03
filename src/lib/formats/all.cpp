@@ -570,8 +570,8 @@
 #include "ql_dsk.h"
 #endif
 
-#ifdef HAS_FORMATS_RC759_DSK
-#include "rc759_dsk.h"
+#ifdef HAS_FORMATS_RC75X_DSK
+#include "rc75x_dsk.h"
 #endif
 
 #ifdef HAS_FORMATS_RK_CAS
@@ -1324,8 +1324,8 @@ void mame_formats_full_list(mame_formats_enumerator &en)
 #endif
 
 	en.category("Regnecentralen");
-#ifdef HAS_FORMATS_RC759_DSK
-	en.add(FLOPPY_RC759_FORMAT); // rc759_dsk.h
+#ifdef HAS_FORMATS_RC75X_DSK
+	en.add(FLOPPY_RC75X_FORMAT); // rc75x_dsk.h
 #endif
 
 	en.category("Roland");

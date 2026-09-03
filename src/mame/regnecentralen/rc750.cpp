@@ -8,14 +8,16 @@
     Both derive from rc75x_state (see rc75x.h), which holds the shared
     80186 + 8259A + 8255 + 82730 + MM58167 + NVM + sound + keyboard core;
     this file adds the Partner-specific floppy/serial/mass-storage side.
-    Runs Concurrent DOS.
+    The Partner shipped with Concurrent DOS.
 
     This models the RC750/23 central unit (2x 1200 KB floppy, 512 KB RAM, no
-    Winchester; DDHF Bits:30005001). It boots the diagnostic ROM (ROD398/399,
-    "*** TEST, V.4.3 ***") through its selftest to the Concurrent DOS install
-    menu, in the machine's real 9x14 font. Flagged MACHINE_NOT_WORKING only
-    because the WD1797 floppy read path is not complete, so no OS boots from
-    disk yet.
+    Winchester; DDHF Bits:30005001). It runs the diagnostic ROM (ROD398/399,
+    "*** TEST, V.4.3 ***") through its selftest and boots the SW1500 disk (an
+    early Concurrent CP/M-86, v2.0) from the floppy to the install menu and on
+    to the command prompt (DIR lists files), all in the machine's real 9x14
+    font. Concurrent DOS itself is untested here. Still flagged
+    MACHINE_NOT_WORKING: the WD1797 read path is not yet robust across all disk
+    formats/drives, and the SCSI adapter, 8087 and colour monitor are unemulated.
 
     HARDWARE (I/O ports verified by disassembling the boot ROM + the PARTNER
     Programmer's Guide v3, jun 1986; the 80186 / 8259A / 8255 / 82730 / MM58167
@@ -58,7 +60,7 @@
 #include "machine/wd_fdc.h"
 #include "machine/z80sio.h"
 #include "imagedev/floppy.h"
-#include "formats/rc759_dsk.h"
+#include "formats/rc75x_dsk.h"
 
 
 namespace {
@@ -236,7 +238,7 @@ INPUT_PORTS_END
 void rc750_state::floppy_formats(format_registration &fr)
 {
 	fr.add_mfm_containers();
-	fr.add(FLOPPY_RC759_FORMAT);
+	fr.add(FLOPPY_RC75X_FORMAT);
 }
 
 void rc750_state::prn_data_w(uint8_t data)
