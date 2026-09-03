@@ -55,6 +55,7 @@ public:
 		m_snd(*this, "snd"),
 		m_rtc(*this, "rtc"),
 		m_vram(*this, "vram"),
+		m_pixmem(*this, "pixmem"),
 		m_config(*this, "config"),
 		m_kbd(*this, "kbd"),
 		m_drq_source(0),
@@ -80,6 +81,9 @@ protected:
 	required_device<sn76489a_device> m_snd;
 	required_device<mm58167_device> m_rtc;
 	required_shared_ptr<uint16_t> m_vram;
+	// Partner-only 32 KB pixel memory at 0xF0000; in alphanumeric mode its 32-byte
+	// blocks are the character generator (glyph = 14 words, 9 px in bits 15..7).
+	optional_shared_ptr<uint16_t> m_pixmem;
 	required_ioport m_config;
 	required_device<rc759_kbd_hle_device> m_kbd;
 
@@ -96,7 +100,6 @@ protected:
 	// a code->glyph lookup once so the renderer can resolve each cell by the
 	// ASCII code the 82730 DMA'd from the display buffer. See rc750.cpp.
 	void init_rom_font(const uint8_t *table, unsigned records, unsigned stride, unsigned glyph_off);
-	void init_rc759_font();
 	bool m_use_rom_font = false;
 	const uint8_t *m_font_glyph[128] = { };
 	// Horizontal cell pitch in px for the ROM-font path. The 7-px glyph is

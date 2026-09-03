@@ -13,7 +13,6 @@
 #include "screen.h"
 #include "speaker.h"
 
-#include "rc759_font.ipp"
 
 
 //**************************************************************************
@@ -40,20 +39,6 @@ void rc75x_state::init_rom_font(const uint8_t *table, unsigned records, unsigned
 	m_use_rom_font = true;
 }
 
-void rc75x_state::init_rc759_font()
-{
-	// Fill in every printable glyph the diagnostic ROM font lacks (lowercase,
-	// most punctuation, ...) from the RC759 soft font extracted from the
-	// Piccoline's 82730 pixel RAM. Called after init_rom_font, so the Partner's
-	// native diagnostic glyphs are kept where present and only the gaps are
-	// backfilled -- enough to make booted CP/M text readable. Stopgap until the
-	// real Partner character generator is available (ravn/mame#48).
-	for (unsigned code = 0x20; code <= 0x7f; code++)
-		if (m_font_glyph[code] == nullptr)
-			m_font_glyph[code] = rc759_font[code - 0x20];
-	m_use_rom_font = true;
-}
-
 
 I82730_UPDATE_ROW( rc75x_state::txt_update_row )
 {
@@ -68,24 +53,31 @@ I82730_UPDATE_ROW( rc75x_state::txt_update_row )
 		for (int i = 0; i < x_count; i++)
 		{
 			bool cursor_here = (cursor == i);
-			const uint8_t *glyph = m_font_glyph[data[i] & 0x7f];
-			uint8_t bits = (glyph && lc < 15) ? glyph[lc] : 0;
 
-			// The display word's high byte is the character attribute. On a
-			// monochrome monitor the Partner drives bit 6 (word bit 14) as the
-			// high-intensity ("bold"/highlight) line -- the diagnostic banner and
-			// normal menu text carry it. Render intensified cells in a brighter
-			// amber, plain cells at the normal level. (Colour-monitor attribute
-			// decoding -- fg/bg colour nibbles -- is a separate feature, #47.)
+			// The display word's low 10 bits address a 32-byte character-generator
+			// block in the Partner pixel memory (0xF0000); each of the 14 rows is
+			// one 9-px word with bit 15 = leftmost (Programmer's Guide 4.1.2/4.3).
+			// Read the real firmware-loaded glyph straight from there. (Fall back
+			// to the boot-ROM glyph table if the pixel memory is absent.)
+			const uint16_t glyph_row = (m_pixmem && lc < 14)
+				? m_pixmem[((data[i] & 0x3ff) << 4) + lc] : 0;
+			const uint8_t *glyph = m_font_glyph[data[i] & 0x7f];
+			const uint8_t bits = (glyph && lc < 15) ? glyph[lc] : 0;
+
+			// Bits 10-14 of the display word select a palette cell; the firmware
+			// uses bit 14 as the high-intensity ("bold"/highlight) line on a mono
+			// monitor. Render intensified cells brighter. (Full palette / colour-
+			// monitor decoding is a separate feature, #47.)
 			const bool intensify = BIT(data[i], 14);
 			const rgb_t on_col = intensify ? rgb_t(0xff, 0xe0, 0x60) : rgb_t(0xff, 0xb0, 0x00);
 
-			// 7-px glyph left-aligned in an m_text_hpitch-wide cell; the extra
-			// columns are the inter-character gap (blank, or reversed under the
-			// cursor so the cell block stays solid).
+			// Glyph left-aligned in the m_text_hpitch-wide cell; the extra columns
+			// are the inter-character gap (blank, or reversed under the cursor so
+			// the cell block stays solid).
 			for (int p = 0; p < m_text_hpitch; p++)
 			{
-				bool on = (p < 7) ? BIT(bits, 6 - p) : false;
+				bool on = m_pixmem ? ((p < 9) && BIT(glyph_row, 15 - p))
+									: ((p < 7) && BIT(bits, 6 - p));
 				if (cursor_here)
 					on = !on; // reverse-video the cell under the cursor
 				bitmap.pix(y, i * m_text_hpitch + p) = on ? on_col : rgb_t(0x1a, 0x12, 0x00);

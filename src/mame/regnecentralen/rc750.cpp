@@ -144,7 +144,12 @@ void rc750_state::rc750_map(address_map &map)
 	// SP=8000) and clears F000:0000-F000:7FFF first, so it expects RAM at
 	// 0xf0000-0xf7fff -- a different memory layout from the Piccoline.
 	// (Found by disassembling the reset-time spin at F951:07A0.)
-	map(0xf0000, 0xf7fff).ram();
+	// 32 KB pixel memory at F000:0000 (Partner Programmer's Guide v3, 4.1.2):
+	// in alphanumeric mode the pixel blocks ARE the character generator -- the
+	// display word's bits 0-9 address a 32-byte block here holding the glyph
+	// (14 rows of one 9-px word, MSB = leftmost). The firmware loads the real
+	// 9x14 font here at boot, so the renderer reads glyphs straight from it.
+	map(0xf0000, 0xf7fff).ram().share("pixmem");
 	map(0xd0000, 0xd7fff).mirror(0x08000).ram().share("vram");
 	map(0xe8000, 0xeffff).mirror(0x10000).rom().region("bios", 0);
 }
@@ -397,11 +402,11 @@ void rc750_state::machine_start()
 	// ROM is upper-case only); each record is [ASCII code][15 rows of 7-px
 	// glyph, bit6 = leftmost][pad]. Derived by dumping RAM+ROM and matching
 	// the rendered glyphs (R,C,7,5,0,A,T,E,S,V) to the "RC750 TEST" banner.
+	// The renderer reads the real firmware-loaded 9x14 font from the pixel
+	// memory (0xF0000, see txt_update_row); init_rom_font is kept only to select
+	// the Partner (ROM-font) render path and as a fallback for the handful of
+	// glyphs present in the boot ROM.
 	init_rom_font(memregion("bios")->base() + 0x7f, 47, 17, 1);
-
-	// Backfill the glyphs the diagnostic font lacks (lowercase, punctuation)
-	// from the RC759 soft font so booted CP/M text is readable (ravn/mame#48).
-	init_rc759_font();
 
 	// NOTE: on the real machine the CCP/M XIOS loads a full 9x14 soft font into
 	// its 4-bank screen character generator one character at a time via
