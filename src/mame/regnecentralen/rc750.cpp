@@ -85,6 +85,14 @@ private:
 	static void floppy_formats(format_registration &fr);
 	void floppy_control_w(uint8_t data);
 
+	// Partner floppy drive-select/control latch (0x260) and sense input (0x220),
+	// reverse-engineered from the boot ROM (the drive-detect at FB3A5 writes a
+	// select code to 0x260 and reads bit4 = "diskette present" for that drive).
+	uint8_t fdc_drive_r();
+	void fdc_drive_w(uint8_t data);
+	uint8_t fdc_sense_r();
+	uint8_t m_fdc_drive_sel = 0;
+
 	uint8_t ppi_porta_r();
 	uint8_t ppi_portb_r();
 	void ppi_portc_w(uint8_t data);
@@ -133,9 +141,15 @@ void rc750_state::rc750_io(address_map &map)
 	// command 0x04 MODE SET) is kicked by the 0x240 CA.
 	map(0x210, 0x211).w(FUNC(rc750_state::txt_irst_w));
 	map(0x240, 0x241).w(FUNC(rc750_state::txt_ca_w));
-	// Partner-specific ports (PROVISIONAL - not verified against the guide)
-	map(0x280, 0x287).rw(m_fdc, FUNC(fd1797_device::read), FUNC(fd1797_device::write)).umask16(0x00ff);
-	map(0x288, 0x288).w(FUNC(rc750_state::floppy_control_w));
+	// WD1797 FDC at 0x200-0x206 (status/cmd, track, sector, data on even bytes).
+	// Verified by disassembling the boot ROM: the selftest polls 0x200 bit0 (WD
+	// BUSY) at FD72E and writes the Force-Interrupt command 0xD8 to 0x200. The
+	// earlier 0x280 guess (from the Piccoline) was wrong for the Partner.
+	map(0x200, 0x207).rw(m_fdc, FUNC(fd1797_device::read), FUNC(fd1797_device::write)).umask16(0x00ff);
+	// Floppy sense input (config jumpers in bits 6-7, ready in bit4; active low)
+	// and the drive-select/control latch (drive-detect probes bit4 per drive).
+	map(0x220, 0x221).r(FUNC(rc750_state::fdc_sense_r)).umask16(0x00ff);
+	map(0x260, 0x261).rw(FUNC(rc750_state::fdc_drive_r), FUNC(rc750_state::fdc_drive_w)).umask16(0x00ff);
 	map(0x2a0, 0x2a7).rw(m_sio, FUNC(i8274_device::ba_cd_r), FUNC(i8274_device::ba_cd_w)).umask16(0x00ff);
 //  map(0x2c0, 0x2cf) SCSI host adapter (not emulated)
 }
@@ -179,6 +193,38 @@ void rc750_state::floppy_control_w(uint8_t data)
 	m_fdc->dden_w(BIT(data, 5));
 }
 
+void rc750_state::fdc_drive_w(uint8_t data)
+{
+	// Drive-select/control latch at 0x260 (PROVISIONAL - reverse-engineered).
+	// The boot ROM's drive detect writes a select code and reads bit4 back to
+	// see whether that drive holds a diskette. Select the WD1797's floppy and
+	// spin the motor whenever a drive is addressed.
+	logerror("fdc_drive_w: %02x\n", data);
+	m_fdc_drive_sel = data;
+
+	floppy_image_device *fl = m_floppy[BIT(data, 0)]->get_device();
+	m_fdc->set_floppy(fl);
+	if (fl) fl->mon_w(0); // motor on
+}
+
+uint8_t rc750_state::fdc_drive_r()
+{
+	// bit4 = "diskette present in the selected drive". The detect sequence
+	// writes 0 (expects bit4 clear) then 2 (expects bit4 set) -- so only report
+	// present when the select code has bit1 set and an image is mounted.
+	floppy_image_device *fl = m_floppy[0]->get_device();
+	bool present = BIT(m_fdc_drive_sel, 1) && fl && fl->exists();
+	return present ? 0x10 : 0x00;
+}
+
+uint8_t rc750_state::fdc_sense_r()
+{
+	// Floppy sense input at 0x220 (active low, PROVISIONAL). Bits 6-7 are config
+	// jumpers; bit4 is a ready line the ROM tests after a 'not al' and wants to
+	// see set (=> the pin must be low). Clear bit4, leave the rest high.
+	return 0xef;
+}
+
 
 //**************************************************************************
 //  I/O (PPI)
@@ -211,7 +257,9 @@ uint8_t rc750_state::ppi_portb_r()
 	data |= 1 << 0; // no micronet controller
 	data |= 1 << 1; // rtc type
 	data |= m_snd->ready_r() << 2;
-	data |= 1 << 3; // not used
+	data |= 0 << 3; // SCSI handshake line: POST test 35 polls this bit (in 0x72,
+	                // bit3) to go low with a timeout; on the Piccoline bit3 was
+	                // "not used" and read 1, which timed out -> ERROR 00035.
 	data |= 1 << 4; // not used
 	data |= m_config->read(); // monitor type and frequency
 	data |= 1 << 7; // not used
