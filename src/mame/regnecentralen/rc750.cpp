@@ -262,10 +262,16 @@ uint8_t rc750_state::prn_ctrl_r()
 
 uint8_t rc750_state::fdc_sense_r()
 {
-	// Floppy sense input at 0x220 (active low, PROVISIONAL). Bits 6-7 are config
-	// jumpers; bit4 is a ready line the ROM tests after a 'not al' and wants to
-	// see set (=> the pin must be low). Clear bit4, leave the rest high.
-	return 0xef;
+	// Configuration / device-presence sense input at 0x220 (active low). Bits 6-7
+	// are the monitor config jumpers (read inverted at f9e17). Bits 5-0 are a
+	// device-presence field scanned at fa8fe (a 0 bit = device installed). The
+	// selftest gates the local-network test on bit4 (fb0ad: `in 220h; not al;
+	// test al,10h; jne run-test`) -- bit4 = 0 means "LAN card present" and makes
+	// the test wait for a network interrupt that a bare machine can't produce
+	// (ERROR 39). This machine has no local-network card and no Winchester, so
+	// report every device absent (all presence bits high) while keeping the
+	// monitor jumpers (bits 6-7) at their working value: 0xff.
+	return 0xff;
 }
 
 void rc750_state::fdc_ctrl_w(uint8_t data)
