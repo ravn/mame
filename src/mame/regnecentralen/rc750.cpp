@@ -399,6 +399,10 @@ void rc750_state::machine_start()
 	// the rendered glyphs (R,C,7,5,0,A,T,E,S,V) to the "RC750 TEST" banner.
 	init_rom_font(memregion("bios")->base() + 0x7f, 47, 17, 1);
 
+	// Backfill the glyphs the diagnostic font lacks (lowercase, punctuation)
+	// from the RC759 soft font so booted CP/M text is readable (ravn/mame#48).
+	init_rc759_font();
+
 	// 80 columns across the 720 px active field (mode block hfldstrt=13,
 	// hfldstp=58, *16) -> 9 px cell pitch; the 7 px glyph leaves a 2 px gap.
 	m_text_hpitch = 9;

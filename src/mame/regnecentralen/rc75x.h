@@ -96,6 +96,7 @@ protected:
 	// a code->glyph lookup once so the renderer can resolve each cell by the
 	// ASCII code the 82730 DMA'd from the display buffer. See rc750.cpp.
 	void init_rom_font(const uint8_t *table, unsigned records, unsigned stride, unsigned glyph_off);
+	void init_rc759_font();
 	bool m_use_rom_font = false;
 	const uint8_t *m_font_glyph[128] = { };
 	// Horizontal cell pitch in px for the ROM-font path. The 7-px glyph is

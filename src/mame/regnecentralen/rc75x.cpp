@@ -13,6 +13,8 @@
 #include "screen.h"
 #include "speaker.h"
 
+#include "rc759_font.ipp"
+
 
 //**************************************************************************
 //  VIDEO EMULATION (Intel 82730)
@@ -35,6 +37,20 @@ void rc75x_state::init_rom_font(const uint8_t *table, unsigned records, unsigned
 			m_font_glyph[code] = rec + glyph_off;
 	}
 
+	m_use_rom_font = true;
+}
+
+void rc75x_state::init_rc759_font()
+{
+	// Fill in every printable glyph the diagnostic ROM font lacks (lowercase,
+	// most punctuation, ...) from the RC759 soft font extracted from the
+	// Piccoline's 82730 pixel RAM. Called after init_rom_font, so the Partner's
+	// native diagnostic glyphs are kept where present and only the gaps are
+	// backfilled -- enough to make booted CP/M text readable. Stopgap until the
+	// real Partner character generator is available (ravn/mame#48).
+	for (unsigned code = 0x20; code <= 0x7f; code++)
+		if (m_font_glyph[code] == nullptr)
+			m_font_glyph[code] = rc759_font[code - 0x20];
 	m_use_rom_font = true;
 }
 
