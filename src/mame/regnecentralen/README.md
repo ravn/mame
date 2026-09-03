@@ -24,9 +24,21 @@ The RC702 keyboard is connected to Z80 PIO port A.  The driver wires the generic
 
 ## RC702: Getting started
 
-For now, copy '*.rom' from a clone of https://github.com/ringgaard/rc700 to `mame/roms/rc702` and copy `cp roa375.rom roa375.ic66`.
+You need to build MAME first.  This script is clickable in IntelliJ/CLion - note -j10 requires a modern machine.
 
-You may also want to just run this script instead on MacOS which copies all known ROMs to the correct location:
+```sh
+make -C ../../.. SUBTARGET=regnecentralen DEBUG=1 SOURCES=src/mame/regnecentralen/rc759.cpp,src/mame/regnecentralen/rc750.cpp,src/mame/regnecentralen/rc702.cpp,src/mame/regnecentralen/pio_port/pio_port.cpp,src/mame/regnecentralen/pio_port/keyboard.cpp,src/mame/regnecentralen/pio_port/cpnet_bridge.cpp REGENIE=1 TOOLS=1 SYMLEVEL=3  SYMBOLS=1  OSD=sdl -j 10
+```
+
+`SOURCES` is comma-separated (no spaces). Since upstream #15805 the PIO-port
+slot lives in the driver folder (`pio_port/`), so its source files must be
+listed explicitly alongside `rc702.cpp` — `cpnet_bridge.cpp` is the fork-only
+CP/NET host-socket card. `OSD=sdl` builds against SDL2.
+
+
+# Running the Piccolo in MAME
+
+First download all known original ROMs to the correct location:
 
 ```sh
 OUTPUT_DIR=../../../roms/rc702
@@ -40,22 +52,8 @@ echo "*** All ROMS should be 2048 bytes ***"
 ls -l $OUTPUT_DIR
 ```
 
+Note: In the following the images have been downloaded from https://ddhf.dk/wiki/Bits:Keyword/RC/RC700 - images from https://www.jbox.dk/rc702/disks.shtm have an off-by-one error and are not compatible with the emulated floppy controller.  TODO:  Full scripting of downloads.
 
-Note that the IMD images in this project are not compatible with MAME due to a different sector offset.
-
-Now build MAME using something like (-j10 requires a modern machine):
-
-```sh
-make -C ../../.. SUBTARGET=regnecentralen DEBUG=1 SOURCES=src/mame/regnecentralen/rc759.cpp,src/mame/regnecentralen/rc750.cpp,src/mame/regnecentralen/rc702.cpp,src/mame/regnecentralen/pio_port/pio_port.cpp,src/mame/regnecentralen/pio_port/keyboard.cpp,src/mame/regnecentralen/pio_port/cpnet_bridge.cpp TOOLS=1 SYMLEVEL=3  SYMBOLS=1  OSD=sdl -j 10
-```
-
-`SOURCES` is comma-separated (no spaces). Since upstream #15805 the PIO-port
-slot lives in the driver folder (`pio_port/`), so its source files must be
-listed explicitly alongside `rc702.cpp` — `cpnet_bridge.cpp` is the fork-only
-CP/NET host-socket card. `OSD=sdl` builds against SDL2.
-
-
-# Running the Piccolo in MAME
 
 ## 8" distribution
 
@@ -69,14 +67,15 @@ CP/NET host-socket card. `OSD=sdl` builds against SDL2.
 (cd ../../..;./regnecentralend rc702mini -bios 0 -window -skip_gameinfo -flop1 ~/Downloads/CPM_med_COMAL80.imd)
 ```
 
-## RC703 distribution (fails due to floppy controller bug)
+## RC703 distribution (fails due to floppy controller bug upstream)
 
 ```sh
 (cd ../../..;./regnecentralend rc703 -bios 1 -window -skip_gameinfo -flop1 ~/Downloads/RC703_CPM_v2.2_r1.2.imd)
 ```
 
+If not running with a floppy image, you should get a yellow screen saying either "** NO PROGRAM OR LINEPROG" which is the ROM saying it cannot find a boot sector on the floppy (and no line program eprom is installed), or "** BAD DISKETTE" which mean that the diskette had read errors.   This is most likely because the disk drive emulated is not compatible with the image.
 
-You should get a yellow screen saying either "** NO PROGRAM OR LINEPROG" which is the ROM saying it cannot find a boot sector on the floppy (and no extra eprom is installed), or "** BAD DISKETTE" which mean that the sanity check on the diskette read failed.   This is most likely because the disk drive emulated is not compatible with the image.
+Full details in the reconstructed ROA375 autoload eprom sources at https://github.com/ravn/rc700-gensmedet/blob/main/roa375/roa375.asm
 
 ## Piccoline and Partner - Getting started
 
