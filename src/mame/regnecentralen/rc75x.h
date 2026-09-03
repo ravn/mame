@@ -80,7 +80,9 @@ protected:
 	required_device<speaker_sound_device> m_speaker;
 	required_device<sn76489a_device> m_snd;
 	required_device<mm58167_device> m_rtc;
-	required_shared_ptr<uint16_t> m_vram;
+	// RC759-only 32 KB pixel RAM at 0xD0000 (soft char generator / gfx bitmap);
+	// the Partner uses m_pixmem instead, so this is optional.
+	optional_shared_ptr<uint16_t> m_vram;
 	// Partner-only 32 KB pixel memory at 0xF0000; in alphanumeric mode its 32-byte
 	// blocks are the character generator (glyph = 14 words, 9 px in bits 15..7).
 	optional_shared_ptr<uint16_t> m_pixmem;

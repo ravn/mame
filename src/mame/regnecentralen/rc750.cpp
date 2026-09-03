@@ -10,39 +10,45 @@
     this file adds the Partner-specific floppy/serial/mass-storage side.
     Runs Concurrent DOS.
 
-    HARDWARE OVERVIEW (from the PARTNER Programmer's Guide v3, jun 1986;
-    the shared core is verified against rc759, the Partner-specific ports
-    are NOT yet verified -- Appendix B of the guide is an OCR-blank scanned
-    figure, so the WD1797/8274/SCSI I/O addresses below are placeholders):
+    This models the RC750/23 central unit (2x 1200 KB floppy, 512 KB RAM, no
+    Winchester; DDHF Bits:30005001). It boots the diagnostic ROM (ROD398/399,
+    "*** TEST, V.4.3 ***") through its selftest to the Concurrent DOS install
+    menu, in the machine's real 9x14 font. Flagged MACHINE_NOT_WORKING only
+    because the WD1797 floppy read path is not complete, so no OS boots from
+    disk yet.
 
-      CPU            Intel 80186 (2 DMA ch, 3 timers, PIC on-chip)
-      Coprocessor    Intel 8087            optional (not emulated)
-      Extra PIC      Intel 8259A           I/O 0x00, cascaded to 80186 INT0
-      Keyboard       HLE serial kbd        I/O 0x20, 8259A IR1
-      Sound          SN76489A              I/O 0x56
-      RTC            MM58167 (32.768 kHz)  I/O 0x5a/0x5c, 8259A IR3
-      CRT control    Intel 82730 text proc I/O 0x60 (ctrl), 0x230/0x240;
-                                            32 KB pixel RAM @ 0xD0000
-      Palette        32 cells x 2 IRGB nib I/O 0x180-0x1be (even)
-      PPI            Intel 8255            I/O 0x70-0x76 (port C bit6 = gfx)
-      NVM            256x4 CMOS, bank-sw    I/O 0x80-0xfe
-      Floppy         WD1797 FDC            modelled as FD1797; standard
-      Serial         Intel 8274 (dual)     standard; via 80186 INT1
-      Mass storage   SCSI bus interface    standard (not emulated)
-      I/O expansion  expansion connector   (not emulated)
+    HARDWARE (I/O ports verified by disassembling the boot ROM + the PARTNER
+    Programmer's Guide v3, jun 1986; the 80186 / 8259A / 8255 / 82730 / MM58167
+    / NVM / sound / keyboard core is shared with the RC759 Piccoline, rc75x.h):
 
-    Differences from the Piccoline: WD1797 instead of WD2797, a built-in
-    Intel 8274 dual serial controller and a SCSI host adapter instead of
-    the Piccoline's cassette / iSBX slot / micronet / DPC options, and an
-    optional 8087. No boot ROM dump is available yet, so the machine is
-    flagged MACHINE_NOT_WORKING.
+      CPU            Intel 80186 @ 8 MHz     (2 DMA ch, 3 timers, PIC on-chip)
+      Coprocessor    Intel 8087              optional (not emulated)
+      Extra PIC      Intel 8259A             I/O 0x00, cascaded to 80186 INT0
+      Keyboard       HLE serial kbd          I/O 0x20, 8259A IR1
+      Sound          SN76489A                I/O 0x56
+      RTC            MM58167 (32.768 kHz)    I/O 0x5a/0x5c, 8259A IR3
+      CRT control    Intel 82730 text proc   irst 0x230, chan-attn 0x240; the
+                                              32 KB pixel memory @ 0xF0000 is
+                                              the 9x14 char generator (§4.1.2)
+      Palette        32 cells x 2 IRGB nib   I/O 0x180-0x1be (even)
+      PPI            Intel 8255              I/O 0x70-0x76 (port A out = NVM
+                                              block select)
+      NVM            256x4 CMOS, bank-sw      I/O 0x80-0xfe
+      Floppy         WD1797 FDC (as FD1797)  I/O 0x200-0x207, ctrl latch 0x210,
+                                              config/ready sense 0x220
+      Printer        Centronics latches      I/O 0x250 (data) / 0x260 (control)
+      Serial         Intel 8274 (dual)       I/O 0x2a0-0x2a7, via 80186 INT1
+      Mass storage   SCSI host adapter       I/O 0x2c0 (not emulated)
+
+    Differs from the Piccoline: WD1797 (not WD2797), a built-in 8274 dual
+    serial + SCSI host adapter instead of the Piccoline's cassette / iSBX /
+    micronet / DPC, an optional 8087, and the character generator in a pixel
+    memory at 0xF0000 (the Piccoline instead keeps a soft font in vram @0xD0000).
 
     TODO:
-    - Obtain a Partner boot ROM dump (none on hampa.ch/pce or rc700.dk).
-    - Verify the Partner I/O port map (guide Appendix B is unreadable);
-      the WD1797/8274/SCSI addresses here are provisional.
+    - Complete the WD1797 floppy read path so a disk OS boots.
     - Wire the SCSI host adapter and the optional 8087.
-    - Same 82730 video limitations as the Piccoline (mono, no gfx mode).
+    - Colour monitor: decode the 82730 palette-select attribute bits (#47).
 
 ***************************************************************************/
 
@@ -83,7 +89,6 @@ private:
 	required_device<i8274_device> m_sio;
 
 	static void floppy_formats(format_registration &fr);
-	void floppy_control_w(uint8_t data);
 
 	uint8_t fdc_sense_r();
 
@@ -152,7 +157,6 @@ void rc750_state::rc750_map(address_map &map)
 	// (14 rows of one 9-px word, MSB = leftmost). The firmware loads the real
 	// 9x14 font here at boot, so the renderer reads glyphs straight from it.
 	map(0xf0000, 0xf7fff).ram().share("pixmem");
-	map(0xd0000, 0xd7fff).mirror(0x08000).ram().share("vram");
 	map(0xe8000, 0xeffff).mirror(0x10000).rom().region("bios", 0);
 }
 
@@ -233,19 +237,6 @@ void rc750_state::floppy_formats(format_registration &fr)
 {
 	fr.add_mfm_containers();
 	fr.add(FLOPPY_RC759_FORMAT);
-}
-
-void rc750_state::floppy_control_w(uint8_t data)
-{
-	// bit layout provisional, modelled on the Piccoline's WD2797 control port
-	logerror("floppy_control_w: %02x\n", data);
-
-	m_fdc->set_floppy(m_floppy[BIT(data, 0)]->get_device());
-
-	if (m_floppy[0]->get_device()) m_floppy[0]->get_device()->mon_w(!BIT(data, 1));
-	if (m_floppy[1]->get_device()) m_floppy[1]->get_device()->mon_w(!BIT(data, 2));
-
-	m_fdc->dden_w(BIT(data, 5));
 }
 
 void rc750_state::prn_data_w(uint8_t data)
