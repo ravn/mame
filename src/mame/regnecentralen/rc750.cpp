@@ -408,17 +408,14 @@ void rc750_state::machine_start()
 	// glyphs present in the boot ROM.
 	init_rom_font(memregion("bios")->base() + 0x7f, 47, 17, 1);
 
-	// NOTE: on the real machine the CCP/M XIOS loads a full 9x14 soft font into
-	// its 4-bank screen character generator one character at a time via
-	// INT 0x28, AL=52 ("define_font"; proven from the RcFont disk CHARSET source:
-	// reg.ax:=define_font(52); reg.cx:=(dest-1)*256+char; reg.ds:=seg(charfont);
-	// reg.dx:=ofs(charfont); swint($28,reg)). The SW1500 *install* disk we boot
-	// does NOT issue that define_font sweep -- it relies on the boot-ROM's
-	// upper-case-only font, so its lowercase menu text is blank on real hardware.
-	// A production CCP/M system disk would load the real font; capturing it needs
-	// an execution-level hook on the INT 0x28 handler (a memory read tap does not
-	// see the 80186's opcode/IVT fetches) plus such a disk. Until then the RC759
-	// backfill above stands in for the missing glyphs (ravn/mame#48).
+	// The full 9x14 standard font (with lowercase and frame glyphs) is loaded by
+	// the boot ROM itself, into the 0xF0000 pixel memory, at POST -- a routine at
+	// ROM offset 0x1CE2 (runs @F9CE2, ~t=0.85s, right after it RAM-tests the pixel
+	// memory) copies the glyphs there. So it is present before the banner and long
+	// before any disk boots; the renderer just reads it back from m_pixmem. The
+	// CCP/M XIOS INT-28h define_font (AL=52) function edits it at runtime (soft
+	// fonts / the 4 alternative banks, Programmer's Guide 4.3) but is not needed
+	// for the default font.
 
 	// 80 columns across the 720 px active field (mode block hfldstrt=13,
 	// hfldstp=58, *16) -> 9 px cell pitch; the 7 px glyph leaves a 2 px gap.
