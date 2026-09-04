@@ -207,7 +207,6 @@ public:
 			std::string &&name,
 			sol::protected_function &&callback)
 		: m_callback(host.m_lua_state, std::move(callback))
-		, m_engine(&host)
 		, m_space(space)
 		, m_handler()
 		, m_name(std::move(name))
@@ -274,16 +273,7 @@ private:
 						m_name,
 						[this] (offs_t offset, T &data, T mem_mask)
 						{
-							// ravn fix 2026-06-13 (mame#10): use invoke()
-							// (sol::thread coroutine wrapper) instead of
-							// invoke_direct() so each tap invocation runs
-							// on a fresh Lua coroutine instead of the main
-							// state.  The main-state path accumulates
-							// stack/GC bookkeeping per call; after ~5k tap
-							// invocations with per-call Lua allocations,
-							// sol's stored luastate pointer is read back
-							// as a small integer -- crashing in lua_gettop.
-							auto result = m_engine->invoke(m_callback, offset, data, mem_mask).template get<std::optional<T> >();
+							auto result = invoke_direct(m_callback, offset, data, mem_mask).template get<std::optional<T> >();
 							if (result)
 								data = *result;
 						},
@@ -296,9 +286,7 @@ private:
 						m_name,
 						[this] (offs_t offset, T &data, T mem_mask)
 						{
-							// ravn fix 2026-06-13 (mame#10): see read tap
-							// above for rationale.
-							auto result = m_engine->invoke(m_callback, offset, data, mem_mask).template get<std::optional<T> >();
+							auto result = invoke_direct(m_callback, offset, data, mem_mask).template get<std::optional<T> >();
 							if (result)
 								data = *result;
 						},
@@ -318,7 +306,6 @@ private:
 	};
 
 	sol::protected_function m_callback;
-	lua_engine *m_engine;  // non-owning; required for invoke() (mame#10 fix)
 	address_space &m_space;
 	memory_passthrough_handler m_handler;
 	std::string m_name;
