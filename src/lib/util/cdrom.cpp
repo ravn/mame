@@ -901,6 +901,10 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 {
 	std::string metadata;
 	std::error_condition err;
+	uint32_t sessionnum = 1;
+	uint32_t sessionindex = 0;
+	uint32_t lastmetaindex = 0;
+	uint32_t metaindex = 0;
 
 	/* clear structures */
 	memset(&toc, 0, sizeof(toc));
@@ -921,13 +925,24 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 		std::fill(std::begin(pgtype), std::end(pgtype), 0);
 		std::fill(std::begin(pgsub), std::end(pgsub), 0);
 
+		// fetch the session metadata first
+		if (!chd->read_metadata(CDROM_SESSION_METADATA_TAG, sessionindex, metadata, metaindex))
+		{
+			if (metaindex-lastmetaindex <= 1) // the session is updated only when the metadata is next in line
+			{
+				if (sscanf(metadata.c_str(), CDROM_SESSION_METADATA_FORMAT, &sessionnum) != 1)
+					return chd_file::error::INVALID_DATA;
+				sessionindex++;
+			}
+		}
+
 		// fetch the metadata for this track
-		if (!chd->read_metadata(CDROM_TRACK_METADATA_TAG, toc.numtrks, metadata))
+		if (!chd->read_metadata(CDROM_TRACK_METADATA_TAG, toc.numtrks, metadata, metaindex))
 		{
 			if (sscanf(metadata.c_str(), CDROM_TRACK_METADATA_FORMAT, &tracknum, type, subtype, &frames) != 4)
 				return chd_file::error::INVALID_DATA;
 		}
-		else if (!chd->read_metadata(CDROM_TRACK_METADATA2_TAG, toc.numtrks, metadata))
+		else if (!chd->read_metadata(CDROM_TRACK_METADATA2_TAG, toc.numtrks, metadata, metaindex))
 		{
 			if (sscanf(metadata.c_str(), CDROM_TRACK_METADATA2_FORMAT, &tracknum, type, subtype, &frames, &pregap, pgtype, pgsub, &postgap) != 8)
 				return chd_file::error::INVALID_DATA;
@@ -935,11 +950,11 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 		else
 		{
 			// fall through to GD-ROM detection
-			err = chd->read_metadata(GDROM_OLD_METADATA_TAG, toc.numtrks, metadata);
+			err = chd->read_metadata(GDROM_OLD_METADATA_TAG, toc.numtrks, metadata, metaindex);
 			if (!err)
 				toc.flags |= CD_FLAG_GDROMLE; // legacy GDROM track was detected
 			else
-				err = chd->read_metadata(GDROM_TRACK_METADATA_TAG, toc.numtrks, metadata);
+				err = chd->read_metadata(GDROM_TRACK_METADATA_TAG, toc.numtrks, metadata, metaindex);
 
 			if (err)
 				break;
@@ -962,6 +977,7 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 		if (track->datasize == 0)
 			return chd_file::error::INVALID_DATA;
 
+		track->session = sessionnum - 1;
 		// extract the subtype and determine the subcode data size
 		track->subtype = CD_SUB_NONE;
 		track->subsize = 0;
@@ -991,7 +1007,13 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 
 		/* set the postgap info */
 		track->postgap = postgap;
+		lastmetaindex = metaindex; 
 	}
+
+	toc.numsessions = sessionnum;
+
+	if (toc.numsessions > 1)
+		toc.flags |= CD_FLAG_MULTISESSION;
 
 	/* if we got any tracks this way, we're done */
 	if (toc.numtrks > 0)
@@ -1066,6 +1088,7 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 std::error_condition cdrom_file::write_metadata(chd_file *chd, const toc &toc)
 {
 	std::error_condition err;
+	uint32_t sessionnum = -1;
 
 	/* write the metadata */
 	for (int i = 0; i < toc.numtrks; i++)
@@ -1083,6 +1106,17 @@ std::error_condition cdrom_file::write_metadata(chd_file *chd, const toc &toc)
 		}
 
 		std::string metadata;
+		
+		if (toc.numsessions > 1 && sessionnum != toc.tracks[i].session)
+		{
+			metadata = util::string_format(CDROM_SESSION_METADATA_FORMAT, toc.tracks[i].session+1);
+			err = chd->write_metadata(CDROM_SESSION_METADATA_TAG, toc.tracks[i].session, metadata);
+	
+			if (err)
+				return err;
+		
+			sessionnum = toc.tracks[i].session;
+		}
 
 		if (toc.flags & CD_FLAG_GDROM)
 		{
@@ -2258,9 +2292,21 @@ std::error_condition cdrom_file::parse_gdi(std::string_view tocfname, toc &outto
 
 		if (trknum != 0)
 		{
-			const int dif = outtoc.tracks[trknum].physframeofs - (outtoc.tracks[trknum-1].frames + outtoc.tracks[trknum-1].physframeofs);
-			outtoc.tracks[trknum-1].frames += dif;
-			outtoc.tracks[trknum-1].padframes = dif;
+			const int dif = outtoc.tracks[trknum].physframeofs - (outtoc.tracks[trknum - 1].frames + outtoc.tracks[trknum - 1].physframeofs);
+
+			// set virtual pregap, but not for high density area
+			if (outtoc.tracks[trknum].physframeofs != cdrom_file::GDI_HIGH_DENSITY_AREA)
+			{
+				outtoc.tracks[trknum].pregap = dif;
+				outtoc.tracks[trknum].pgdatasize = 0;
+				outtoc.tracks[trknum].physframeofs -= dif;
+			}
+			else
+			{
+				// add padding before high density area
+				outtoc.tracks[trknum-1].frames += dif;
+				outtoc.tracks[trknum-1].padframes = dif;
+			}
 		}
 
 		TOKENIZE
@@ -2804,70 +2850,6 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 }
 
 /*-------------------------------------------------
-    remove_pregap - strip pregaps and adjust the LBA offset
--------------------------------------------------*/
-
-/**
- * @fn  static std::error_condition remove_pregap(toc &outtoc, track_input_info &outinfo)
- *
- * @brief   Chdgd strip pregaps and adjust the LBA offset.
- *
- * @param [in,out]  outtoc  The outtoc.
- * @param [in,out]  outinfo The outinfo.
- *
- * @return  A std::error_condition.
- */
-
-std::error_condition cdrom_file::remove_pregap(toc &outtoc, track_input_info &outinfo)
-{
-	int trknum;
-
-	for (trknum = 0; trknum < outtoc.numtrks; trknum++)
-	{
-		if (outtoc.tracks[trknum].pregap > 0 && outtoc.tracks[trknum].pgdatasize > 0) // pregap in data
-		{
-			uint32_t this_pregap = outtoc.tracks[trknum].pregap;
-			uint32_t this_offset = this_pregap * (outtoc.tracks[trknum].datasize + outtoc.tracks[trknum].subsize);
-
-			outtoc.tracks[trknum - 1].frames += this_pregap;
-			outtoc.tracks[trknum - 1].splitframes += this_pregap;
-
-			outinfo.track[trknum].offset += this_offset;
-			outtoc.tracks[trknum].frames -= this_pregap;
-			outinfo.track[trknum].idx[1] -= this_pregap;
-
-			outtoc.tracks[trknum - 1].pregap = 0;
-			outtoc.tracks[trknum - 1].pgtype = 0;
-		}
-	}
-
-	if (EXTRA_VERBOSE)
-	{
-		for (trknum = 0; trknum < outtoc.numtrks; trknum++)
-		{
-			osd_printf_verbose("strip_pregap:\n");
-			osd_printf_verbose("session %d trk %d: %d frames @ offset %d, pad=%d, split=%d, area=%d, phys=%d, pregap=%d, pgtype=%d, pgdatasize=%d, idx0=%d, idx1=%d, dataframes=%d\n",
-				outtoc.tracks[trknum].session + 1,
-				trknum + 1,
-				outtoc.tracks[trknum].frames,
-				outinfo.track[trknum].offset,
-				outtoc.tracks[trknum].padframes,
-				outtoc.tracks[trknum].splitframes,
-				outtoc.tracks[trknum].multicuearea,
-				outtoc.tracks[trknum].physframeofs,
-				outtoc.tracks[trknum].pregap,
-				outtoc.tracks[trknum].pgtype,
-				outtoc.tracks[trknum].pgdatasize,
-				outinfo.track[trknum].idx[0],
-				outinfo.track[trknum].idx[1],
-				outtoc.tracks[trknum].frames - outtoc.tracks[trknum].padframes);
-		}
-	}
-
-	return std::error_condition();
-}
-
-/*-------------------------------------------------
     adjust_high_density_area - Set LBA for every track with HIGH-DENSITY area @ LBA 45000
 -------------------------------------------------*/
 
@@ -2890,7 +2872,7 @@ std::error_condition cdrom_file::adjust_high_density_area(toc &outtoc, track_inp
 	{
 		if (outtoc.tracks[trknum].multicuearea == HIGH_DENSITY && outtoc.tracks[trknum - 1].multicuearea == SINGLE_DENSITY)
 		{
-			outtoc.tracks[trknum].physframeofs = 45000;
+			outtoc.tracks[trknum].physframeofs = cdrom_file::GDI_HIGH_DENSITY_AREA;
 			int dif = outtoc.tracks[trknum].physframeofs - (outtoc.tracks[trknum - 1].frames + outtoc.tracks[trknum - 1].physframeofs);
 			outtoc.tracks[trknum - 1].frames += dif;
 			outtoc.tracks[trknum - 1].padframes = dif;

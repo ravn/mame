@@ -34,7 +34,7 @@ HP14782-1
 |-------------------------------------------------------------------------------------------|
 
 Notes:
-    All IC's shown. TMCP-300 and TMC-700 expansions have been installed.
+    All IC's shown. TMCP-300 (audio output) and TMC-700 (RF video/printer) expansions have been installed.
 
     ROM0-5  - Toshiba TMM2732DI 4Kx8 EPROM
     ROM6    - Hitachi HN462732G 4Kx8 EPROM
@@ -80,7 +80,7 @@ Notes:
                 3   mono audio output
                 4   N/C
                 5   mono audio output
-    CN8     - 10x2 pin keyboard connector
+    CN8     - 10x2 pin keyboard connector PCB header
     SW1     - RUN/STOP switch (left=run, right=stop)
     SW2     - internal speaker/external audio switch [TMCP-300]
     P1      - color phase lock adjustment potentiometer
@@ -94,15 +94,32 @@ Notes:
     K2      - RF channel adjustment variable inductor (VHF I) [TMC-700]
     LS1     - loudspeaker
 
-*/
+    Designed by Hannu Peiponen and Timo Virtaneva.
 
-/*
 
-    TODO
+KB-76
 
-    - connect expansion bus
-    - series I ROMs
-    - DOS ROMs
+|---------------------------------------------------------------------------------------------|
+|                                          |--CN1--|                                LED1      |
+|                                                                                             |
+| DEL   1!  2"  3#  4$  5%  6&  7'  8(  9)  0   -=  ^~  @\  BREAK       7   8   9   UP  ESC   |
+|                                                                                             |
+|   CTRL  Q   W   E   R   T   Y   U   I   O   P   Å   ;+  RETURN        4   5   6   RT  SW1   |
+|                                                                                             |
+|    SHIFT  A   S   D   F   G   H   J   K   L   Ö   Ä   :*  LINE        1   2   3   DN  CTRL  |
+|    LOCK                                                   FEED                              |
+|    SHIFT    Z   X   C   V   B   N   M   ,<  .>  /?  SHIFT             ,   0   .   LT  ALT   |
+|                                                                                       MODE  |
+|                          SPACE                                                              |
+|                                                                                             |
+|---------------------------------------------------------------------------------------------|
+
+Notes:
+
+    SW*     - RAFI RS 76 M (mould .516 / code 145 502) switch
+	SW1		- unmarked key
+    LED1    - red power on LED
+    CN1     - 10x2 pin keyboard connector PCB header, bottom side of PCB
 
 */
 
@@ -388,7 +405,7 @@ QUICKLOAD_LOAD_MEMBER(tmc600_state::quickload_cb)
 
 void tmc600_state::tmc600_map(address_map &map)
 {
-	map(0x0000, 0x5fff).rom();
+	map(0x0000, 0x5fff).rom().nopw();
 	map(0x6000, 0x7fff).ram();
 	map(0xf400, 0xf7ff).m(m_vis, FUNC(cdp1869_device::char_map));
 	map(0xf800, 0xffff).m(m_vis, FUNC(cdp1869_device::page_map));
@@ -399,7 +416,6 @@ void tmc600_state::tmc600_io_map(address_map &map)
 	map(0x03, 0x03).w(m_bwio, FUNC(cdp1852_device::write));
 	map(0x04, 0x04).w(CDP1852_TMC700_TAG, FUNC(cdp1852_device::write));
 	map(0x05, 0x05).rw(FUNC(tmc600_state::rtc_r), FUNC(tmc600_state::vismac_data_w));
-//  map(0x06, 0x06).w(FUNC(tmc600_state::floppy_w);
 	map(0x07, 0x07).w(FUNC(tmc600_state::vismac_register_w));
 }
 
@@ -577,6 +593,8 @@ void tmc600_state::tmc600(machine_config &config)
 
 	// expansion bus connector
 	TMC600_EUROBUS_SLOT(config, m_bus, tmc600_eurobus_cards, nullptr);
+	m_bus->set_memspace(CDP1802_TAG, AS_PROGRAM);
+	m_bus->set_iospace(CDP1802_TAG, AS_IO);
 
 	// internal RAM
 	RAM(config, RAM_TAG).set_default_size("8K");
@@ -631,5 +649,5 @@ ROM_END
 //**************************************************************************
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY        FULLNAME                     FLAGS
-//COMP( 1982, tmc600s1, 0,      0,      tmc600,  tmc600, tmc600_state, empty_init, "Telercas Oy", "Telmac TMC-600 (Sarja I)",  MACHINE_NOT_WORKING )
+//COMP( 1982, tmc600s1, 0,      0,      tmc600,  tmc600, tmc600_state, empty_init, "Telercas Oy", "Telmac TMC-600 (Sarja I)",  MACHINE_SUPPORTS_SAVE )
 COMP( 1982, tmc600s2, 0,      0,      tmc600,  tmc600, tmc600_state, empty_init, "Telercas Oy", "Telmac TMC-600 (Sarja II)", MACHINE_SUPPORTS_SAVE )
