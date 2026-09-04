@@ -495,6 +495,14 @@ void sdl_osd_interface::process_events()
 		// handle UI events
 		switch (event.type)
 		{
+#if defined(__APPLE__) && defined(__MACH__)
+			case SDL_EVENT_QUIT:
+				// macOS Cmd-Q / app Quit posts SDL_EVENT_QUIT under SDL3; exit like a window close.
+				// macOS-only: on Linux SDL_QUIT is Ctrl+C in the controlling terminal.
+				machine().schedule_exit();
+				break;
+#endif
+
 			case SDL_EVENT_WINDOW_SHOWN:
 			case SDL_EVENT_WINDOW_HIDDEN:
 			case SDL_EVENT_WINDOW_EXPOSED:
