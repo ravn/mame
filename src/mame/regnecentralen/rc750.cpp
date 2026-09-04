@@ -8,12 +8,13 @@
     Both derive from rc75x_state (see rc75x.h), which holds the shared
     80186 + 8259A + 8255 + 82730 + MM58167 + NVM + sound + keyboard core;
     this file adds the Partner-specific floppy/serial/mass-storage side.
-    The Partner shipped with Concurrent DOS.
+    The Partner first shipped with CCP/M-86, which was later developed into
+    Concurrent DOS.
 
     This models the RC750/23 central unit (2x 1200 KB floppy, 512 KB RAM, no
     Winchester; DDHF Bits:30005001). It runs the diagnostic ROM (ROD398/399,
-    "*** TEST, V.4.3 ***") through its selftest and boots the SW1500 disk (an
-    early Concurrent CP/M-86, v2.0) from the floppy to the install menu and on
+    "*** TEST, V.4.3 ***") through its selftest and boots the SW1500 disk (CCP/M-86
+    v2.0, the initial release) from the floppy to the install menu and on
     to the command prompt (DIR lists files), all in the machine's real 9x14
     font. Concurrent DOS itself is untested here. Still flagged
     MACHINE_NOT_WORKING: the WD1797 read path is not yet robust across all disk

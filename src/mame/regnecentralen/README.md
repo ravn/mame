@@ -121,7 +121,8 @@ floppy/serial/expansion side. `rc750.cpp` is NOT a subclass of `rc759.cpp`
 Partner-specific hardware (from the PARTNER Programmer's Guide v3, jun 1986,
 saved in `rc700-gensmedet/docs/`): WD1797 FDC (modelled as `FD1797`), an
 Intel 8274 dual serial controller, a SCSI host adapter and an optional 8087,
-instead of the Piccoline's cassette / iSBX slot. It runs Concurrent DOS.
+instead of the Piccoline's cassette / iSBX slot. It first ran CCP/M-86, which
+was later developed into Concurrent DOS.
 
 As of 2026-09-03 the Partner passes the self-test and boots on floppy with CCP/M-86 2.0 (the initial release from RC) and renders text mode correctly.
 

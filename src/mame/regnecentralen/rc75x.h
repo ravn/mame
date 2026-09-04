@@ -13,7 +13,7 @@
       - RC759 Piccoline: WD2797 FDC, cassette, iSBX slot, Centronics
         (see rc759.cpp), Concurrent CP/M-86.
       - RC750 Partner: WD1797 FDC, Intel 8274 serial, SCSI bus, optional
-        8087 (see rc750.cpp), Concurrent DOS.
+        8087 (see rc750.cpp), CCP/M-86 (later developed into Concurrent DOS).
 
     rc75x_state holds the shared devices and handlers; rc759_state and
     rc750_state derive from it (NEITHER derives from the other).
