@@ -1,6 +1,6 @@
 # Regnecentralen
 
-This file contains notes for future contributors to the RC700 Piccolo series, RC750 Partner, and RC759 Piccoline drivers in MAME.  Links were current as of 2024-09-04.
+This file contains notes for future contributors to the RC700 Piccolo series, RC750 Partner, and RC759 Piccoline drivers in MAME.  Links were current as of 2026-09-04.
 
 The RC702 is a 8-bit Z80 machine with either 8" external floppy drives or built-in 5,25" 360 Kb floppy drives, 64 Kb RAM, an optional 10 Mb Winchester hard disk and an external keyboard connected with the parallel port.  There is a 2 Kb boot prom ("autoload") which is presented as the bios in MAME. The successor RC703 had high density 5,25" 1.2 Mb diskettes, larger eproms, and generally improved electronics.  
 
