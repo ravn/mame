@@ -28,7 +28,16 @@ public:
 
 	IRQ_CALLBACK_MEMBER(int_callback);
 	IRQ_CALLBACK_MEMBER(inta_callback);
-	void drq0_w(int state) { m_dma[0].drq_state = state; }
+	void drq0_w(int state)
+	{
+		m_dma[0].drq_state = state;
+		// service a synchronised ch0 transfer at once: a fast source (e.g. a
+		// WD2797 floppy) can overrun the byte window before the next
+		// execute_run(), and one lost byte sets S_LOST and kills the sector
+		if (state && !m_dma_latency
+			&& (m_dma[0].control & 0x0002) && (m_dma[0].control & 0x00c0))
+			drq_callback(0);
+	}
 	void drq1_w(int state) { m_dma[1].drq_state = state; }
 	void tmrin0_w(int state) { external_tmrin(0, state); }
 	void tmrin1_w(int state) { external_tmrin(1, state); }
