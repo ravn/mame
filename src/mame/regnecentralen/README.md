@@ -115,8 +115,14 @@ folder, so the generated project picks up the new files).
 and run it similar to:
 
 ```sh
-./regnecentralend rc759 -window -skip_gameinfo
+(cd ../../..;./regnecentralend rc759 -window -skip_gameinfo -flop1 ~/Downloads/SW1500_2.0.imd)
 ```
+More at https://datamuseum.dk/wiki/Bits:Keyword/RC/RC759
+
+```sh
+(cd ../../..;./regnecentralend rc750 -window -skip_gameinfo -flop1 ~/Downloads/SW1500_2.0.imd -flop2 ~/Downloads/SW1542_RcSkak_r3.1.imd)
+```
+More at https://datamuseum.dk/wiki/Bits:Keyword/RC/RC750
 
 ## RC750 Partner hardware
 

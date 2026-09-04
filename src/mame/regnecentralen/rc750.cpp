@@ -47,8 +47,14 @@
     micronet / DPC, an optional 8087, and the character generator in a pixel
     memory at 0xF0000 (the Piccoline instead keeps a soft font in vram @0xD0000).
 
+    Drive A boots CCP/M-86 2.0 from SW1500 and DIR A: works.  Drive B reads
+    still fail with WD1797 Record Not Found on some sectors (#49) despite the
+    drive being correctly selected/loaded -- likely side-select or a
+    head-position/track-register desync across the drive switch.
+
     TODO:
-    - Complete the WD1797 floppy read path so a disk OS boots.
+    - Fix the drive-B WD1797 read path (Record Not Found, #49); #45 tracks the
+      general read-path robustness.
     - Wire the SCSI host adapter and the optional 8087.
     - Colour monitor: decode the 82730 palette-select attribute bits (#47).
 
@@ -293,6 +299,9 @@ void rc750_state::fdc_ctrl_w(uint8_t data)
 		fl->mon_w(BIT(data, 6) ? 0 : 1); // motor on while the FDC is enabled
 
 	m_fdc->dden_w(BIT(data, 0)); // single/double density
+
+	// NOTE: drive B still gets Record Not Found on some reads (#49); side-select
+	// and per-drive head position across the switch are the prime suspects.
 }
 
 uint8_t rc750_state::fdc_ctrl_r()
