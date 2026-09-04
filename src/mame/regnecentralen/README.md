@@ -103,7 +103,7 @@ ls -l $OUTPUT_DIR
 and run it similar to:
 
 ```sh
-(cd ../../..;./regnecentralend rc759 -window -skip_gameinfo -flop1 ~/Downloads/SW1500_2.0.imd)
+(cd ../../..;./regnecentralend rc759 -window -skip_gameinfo -flop1 ../scratch/rc759-pce/images/sw1400_r31a_d1.img)
 ```
 More at https://datamuseum.dk/wiki/Bits:Keyword/RC/RC759
 
