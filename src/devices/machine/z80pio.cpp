@@ -237,23 +237,16 @@ uint8_t z80pio_device::control_read()
 void z80pio_device::check_interrupts()
 {
 	int state = CLEAR_LINE;
-	// IUS from port N blocks ports N+1, N+2 ... but NOT port N itself.
-	// Track "any higher-priority port in service" as we scan A->B so that
-	// each port is gated only by ports above it, not its own IUS.
-	bool ius_above = false;
+	bool ius = (m_port[PORT_A].m_ius || m_port[PORT_B].m_ius);
 
 	for (int index = PORT_A; index < PORT_COUNT; index++)
 	{
 		if (LOG) logerror("Z80PIO Port %c IE %s IP %s IUS %s\n", 'A' + index, m_port[index].m_ie ? "1":"0", m_port[index].m_ip ? "1":"0", m_port[index].m_ius ? "1":"0");
 
-		if (!ius_above && m_port[index].m_ie && m_port[index].m_ip)
+		if (!ius && m_port[index].m_ie && m_port[index].m_ip)
 		{
 			state = ASSERT_LINE;
 		}
-
-		// A port in service blocks all lower-priority ports.
-		if (m_port[index].m_ius)
-			ius_above = true;
 	}
 
 	if (LOG) logerror("Z80PIO INT %u\n", state);
@@ -392,15 +385,6 @@ void z80pio_device::pio_port::set_mode(int mode)
 	case MODE_OUTPUT:
 		if (LOG) m_device->logerror("Z80PIO Port %c Mode: Output\n", 'A' + m_index);
 
-		// set mode register BEFORE firing the output callback.  Otherwise
-		// downstream devices (e.g. the rc702 cpnet_bridge) can call back
-		// into the chip via strobe_w from inside their write() handler
-		// while m_mode still holds its prior value -- if that prior value
-		// was MODE_INPUT, the chip fires m_in_pb_cb and pollutes m_input
-		// with whatever the peripheral returns at that moment.  Setting
-		// m_mode first makes the strobe-back see MODE_OUTPUT (no callback).
-		m_mode = mode;
-
 		// enable data output
 		if (m_index == PORT_A)
 			m_device->m_out_pa_cb((offs_t)0, m_output);
@@ -410,6 +394,8 @@ void z80pio_device::pio_port::set_mode(int mode)
 		// assert ready line
 		set_rdy(true);
 
+		// set mode register
+		m_mode = mode;
 		break;
 
 	case MODE_INPUT:
