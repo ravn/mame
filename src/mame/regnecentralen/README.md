@@ -15,12 +15,17 @@ Note that all machines use a national 8-bit locale with ÆØÅ and æøå replac
 You need to build MAME first.  This script is clickable in IntelliJ/CLion - note -j10 requires a modern machine.
 
 ```sh
-make -C ../../.. SUBTARGET=regnecentralen DEBUG=1 SOURCES=src/mame/regnecentralen/rc759.cpp,src/mame/regnecentralen/rc750.cpp,src/mame/regnecentralen/rc702.cpp,src/mame/regnecentralen/pio_port/pio_port.cpp,src/mame/regnecentralen/pio_port/keyboard.cpp,src/mame/regnecentralen/pio_port/cpnet_bridge.cpp TOOLS=1 SYMLEVEL=3  SYMBOLS=1  OSD=sdl -j 10
+make -C ../../.. SUBTARGET=regnecentralen DEBUG=1 SOURCES=src/mame/regnecentralen/rc759.cpp,src/mame/regnecentralen/rc750.cpp,src/mame/regnecentralen/rc702.cpp,src/mame/regnecentralen/pio_port/pio_port.cpp,src/mame/regnecentralen/pio_port/keyboard.cpp TOOLS=1 SYMLEVEL=3  SYMBOLS=1  OSD=sdl -j 10
 ```
 
 
 (add `REGENIE=1` the first time after adding/removing a source file in this
 folder, so the generated project picks up the new files).
+
+The fork-only CP/NET PIO host bridge (`pio_port/cpnet_bridge.*`, slot option
+`cpnet_bridge`) is parked on branch `parked-rc702-cpnet-bridge` until the
+CP/NOS fast-link transport is upstream-ready (issue #50), so the PIO slot
+currently only offers the `keyboard` card.
 
 
 # Running the RC70x Piccolo in MAME
