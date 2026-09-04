@@ -621,20 +621,6 @@ static void rc703_floppies(device_slot_interface &device)
 	device.option_add("525qd", FLOPPY_525_QD);
 }
 
-// FORK-ONLY (not in upstream #15805): default the RS232 null_modem slots to
-// the firmware's cold-boot rate (38400 8-N-1) so a host bitbanger/null_modem
-// captures the guest's SIO byte stream cleanly WITHOUT needing -rs232a/-rs232b
-// slot options on the command line.  Required by the cpnos CP/NET / SIO-B
-// console-mirror test harness (rc700-gensmedet cpnos-polypascal-test): without
-// a matching baud on the host end the captured stream is framing garbage.
-static DEVICE_INPUT_DEFAULTS_START( rs232_38400_8n1 )
-	DEVICE_INPUT_DEFAULTS( "RS232_TXBAUD",   0xff, RS232_BAUD_38400 )
-	DEVICE_INPUT_DEFAULTS( "RS232_RXBAUD",   0xff, RS232_BAUD_38400 )
-	DEVICE_INPUT_DEFAULTS( "RS232_DATABITS", 0xff, RS232_DATABITS_8 )
-	DEVICE_INPUT_DEFAULTS( "RS232_PARITY",   0xff, RS232_PARITY_NONE )
-	DEVICE_INPUT_DEFAULTS( "RS232_STOPBITS", 0xff, RS232_STOPBITS_1 )
-DEVICE_INPUT_DEFAULTS_END
-
 void rc702_state::rc700_base(machine_config &config)
 {
 	/* basic machine hardware */
@@ -661,8 +647,12 @@ void rc702_state::rc700_base(machine_config &config)
 	m_sio->out_dtrb_callback().set(m_rs232b, FUNC(rs232_port_device::write_dtr));
 
 	// SIO-A (J1): data/reader port - mapped to RDR:/PUN: in CP/M.
+	// No baud-rate default is baked in: set it per run on the command line to
+	// match the firmware's cold-boot rate, e.g.
+	//   -rs232a null_modem -rs232a:null_modem:baud 38400
+	// (the fork-only 38400-8-N-1 default for the cpnos CP/NET test harness is
+	// parked on branch parked-rc702-cpnet-bridge, issue #50).
 	RS232_PORT(config, m_rs232a, default_rs232_devices, "null_modem");
-	m_rs232a->set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(rs232_38400_8n1));  // fork-only, see above
 	m_rs232a->rxd_handler().set(m_sio, FUNC(z80sio_device::rxa_w));
 	m_rs232a->cts_handler().set(m_sio, FUNC(z80sio_device::ctsa_w));
 	m_rs232a->dcd_handler().set(m_sio, FUNC(z80sio_device::dcda_w));
@@ -672,9 +662,8 @@ void rc702_state::rc700_base(machine_config &config)
 	// host -- CP/NET traffic can go over either this SIO channel or PIO-B.
 	// No baud-rate default is set; the firmware programs the CTC baud
 	// generator at cold boot, so match the null_modem slot to the firmware
-	// rate (typically 38400 8-N-1) in MAME's slot options.
+	// rate (typically 38400 8-N-1) on the command line (see SIO-A above).
 	RS232_PORT(config, m_rs232b, default_rs232_devices, "null_modem");
-	m_rs232b->set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(rs232_38400_8n1));  // fork-only, see above
 	m_rs232b->rxd_handler().set(m_sio, FUNC(z80sio_device::rxb_w));
 	m_rs232b->cts_handler().set(m_sio, FUNC(z80sio_device::ctsb_w));
 	m_rs232b->dcd_handler().set(m_sio, FUNC(z80sio_device::dcdb_w));
