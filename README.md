@@ -1,9 +1,7 @@
-# FORK NOTE: Mame forked until further notice.
+# FORK NOTE:
+This is a fork of MAME in order to get the Regnecentralen machines RC702/RC703 and RC750/RC759 working.  Claude/Copilot/Mistral have been used extensively to get where I am today.
 
-This is a fork of MAME for the Regnecentralen machines RC702/RC703 and RC750/RC759.
-Claude/Copilot/Mistral have been used extensively to get where I am today.
-
-Upstream PRs have been abandoned. This fork is self-contained going forward.
+Due to miscommunications with the MAME core team this work will most likely not be merged upstream for the foreseable future. It is my hope it will happen some day.
 
 /ravn 2026-09-05
 
