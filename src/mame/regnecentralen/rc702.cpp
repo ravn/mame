@@ -651,6 +651,11 @@ void rc702_state::rc700_base(machine_config &config)
 	m_sio->out_dtrb_callback().set(m_rs232b, FUNC(rs232_port_device::write_dtr));
 
 	// SIO-A (J1): data/reader port - mapped to RDR:/PUN: in CP/M.
+	// No baud-rate default is baked in: set it per run on the command line to
+	// match the firmware's cold-boot rate, e.g.
+	//   -rs232a null_modem -rs232a:null_modem:baud 38400
+	// (the fork-only 38400-8-N-1 default for the cpnos CP/NET test harness is
+	// parked on branch parked-rc702-cpnet-bridge, issue #50).
 	RS232_PORT(config, m_rs232a, default_rs232_devices, "null_modem");
 	m_rs232a->rxd_handler().set(m_sio, FUNC(z80sio_device::rxa_w));
 	m_rs232a->cts_handler().set(m_sio, FUNC(z80sio_device::ctsa_w));
@@ -661,7 +666,7 @@ void rc702_state::rc700_base(machine_config &config)
 	// host -- CP/NET traffic can go over either this SIO channel or PIO-B.
 	// No baud-rate default is set; the firmware programs the CTC baud
 	// generator at cold boot, so match the null_modem slot to the firmware
-	// rate (typically 38400 8-N-1) in MAME's slot options.
+	// rate (typically 38400 8-N-1) on the command line (see SIO-A above).
 	RS232_PORT(config, m_rs232b, default_rs232_devices, "null_modem");
 	m_rs232b->rxd_handler().set(m_sio, FUNC(z80sio_device::rxb_w));
 	m_rs232b->cts_handler().set(m_sio, FUNC(z80sio_device::ctsb_w));
@@ -801,11 +806,9 @@ ROM_START( rc702 )
 	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF )
 	ROM_LOAD( "roa375.ic66", 0x0000, 0x0800, CRC(034cf9ea) SHA1(306af9fc779e3d4f51645ba04f8a99b11b5e6084) )
 
-	// IC65 line-program ROM (ROB388 on MIC705), undumped.  Optional: drop a
-	// prom1.ic65 into the rom path to supply one (e.g. the CP/NOS line
-	// program); otherwise the region stays 0xff.
+	// IC65 line-program ROM socket for the optional PROM1.
 	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF )
-	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
+	//ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
 
 	ROM_REGION( 0x1000, "chargen", 0 )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) ) // char
@@ -825,8 +828,10 @@ ROM_START( rc703 )
 	ROM_SYSTEM_BIOS(1, "rc700", "RC700")
 	ROMX_LOAD( "rob358.rom", 0x0000, 0x0800, CRC(254aa89e) SHA1(5fb1eb8df1b853b931e670a2ff8d062c1bd8d6bc), ROM_BIOS(1))
 
+	// empty PROM1 line-program socket by default (see rc702 above); commented
+	// out to avoid the startup "bad ROM dump" warning.
 	ROM_REGION( 0x1000, "prom1", ROMREGION_ERASEFF )
-	ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
+	//ROM_LOAD_OPTIONAL( "prom1.ic65", 0x0000, 0x1000, NO_DUMP )
 
 	ROM_REGION( 0x1000, "chargen", 0 )
 	ROM_LOAD( "roa296.rom", 0x0000, 0x0800, CRC(7d7e4548) SHA1(efb8b1ece5f9eeca948202a6396865f26134ff2f) )

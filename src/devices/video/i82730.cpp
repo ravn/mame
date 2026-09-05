@@ -52,6 +52,7 @@ i82730_device::i82730_device(const machine_config &mconfig, const char *tag, dev
 	m_cbp(0x0000),
 	m_list_switch(false),
 	m_auto_line_feed(false),
+	m_eof_hit(false),
 	m_max_dma_count(0),
 	m_lptr(0),
 	m_status(0x0000),
@@ -60,7 +61,8 @@ i82730_device::i82730_device(const machine_config &mconfig, const char *tag, dev
 	m_row(nullptr),
 	m_dma_count(0),
 	m_row_count(0),
-	m_row_index(0)
+	m_row_index(0),
+	m_current_row(0)
 {
 }
 
@@ -153,6 +155,17 @@ void i82730_device::update_interrupts()
 
 	if (code)
 		m_sint_handler(1);
+}
+
+bool i82730_device::cursor_visible()
+{
+	// CR1_BE enables blinking of cursor 1; CURSOR_BLINK sets the blink rate in
+	// frames. When blinking is disabled (or the rate is 0) the cursor is shown
+	// steady. The 50%-duty phase below keeps it comfortably visible.
+	if (!m_mb.cr1_be || m_mb.cursor_blink == 0)
+		return true;
+
+	return ((screen().frame_number() / m_mb.cursor_blink) & 1) == 0;
 }
 
 void i82730_device::mode_set()
@@ -256,8 +269,15 @@ void i82730_device::mode_set()
 	m_mb.underline2 = (tmp >> 4) & 0x0f;
 	m_mb.underline1 = tmp & 0x0f;
 
-	// setup screen mode
-	rectangle visarea(m_mb.hbrdstrt * 16, m_mb.hbrdstp * 16 - 1, m_mb.vsyncstp, m_mb.vfldstp + m_mb.scroll_margin + 1 + m_mb.lpr - 1);
+	// setup screen mode. The row renderer writes content into m_bitmap at
+	// row (scanline - vsyncstp) and screen_update copies it with desty 0, so
+	// the visible rectangle must be expressed in that same content coordinate
+	// space (subtract vsyncstp). min_y is the field top (vfldstrt - vsyncstp)
+	// so the text hugs the top edge, symmetric with the horizontal field which
+	// hugs the left edge (hbrdstrt == hfldstrt here) -- previously min_y was
+	// left in raw scanline space (vsyncstp), leaving a spurious top gap of
+	// (vfldstrt - vsyncstp) px between the window edge and the first char row.
+	rectangle visarea(m_mb.hbrdstrt * 16, m_mb.hbrdstp * 16 - 1, m_mb.vfldstrt - m_mb.vsyncstp, m_mb.vfldstp + m_mb.scroll_margin + 1 + m_mb.lpr - 1 - m_mb.vsyncstp);
 	attotime period = attotime::from_ticks(m_mb.line_length * 16 * m_mb.frame_length, clock() * 16);
 	screen().configure(m_mb.line_length * 16, m_mb.frame_length, visarea, period);
 
@@ -329,10 +349,21 @@ void i82730_device::execute_command()
 	// LOAD CBP
 	case 0x05:
 		LOGMASKED(LOG_COMMANDS, "Executing command LOAD CBP\n");
+		// The block that carried LOAD CBP is itself complete once the new
+		// pointer has been latched, so clear ITS busy flag now -- the CPU polls
+		// the busy bit of the block it wrote the command into (here the mailbox
+		// command block), not the block LOAD CBP points at. Then load the new
+		// CBP and execute it, which clears the new block's own busy in turn.
+		// Previously only the post-switch m_cbp (the new block) had its busy
+		// cleared, so a guest that issued LOAD CBP through a fixed mailbox and
+		// then polled that mailbox's busy bit (RC750 Partner selftest, test 16
+		// "Dataskaerm controller") spun forever. Return afterwards so the
+		// trailing busy-clear below does not redundantly touch the new block.
+		write_word(m_cbp, read_word(m_cbp) & 0xff00);
 		m_cbp = (read_word(m_cbp + 16) << 16) | read_word(m_cbp + 14);
 		LOGMASKED(LOG_COMMANDS, "--> New value = %08x\n", m_cbp);
 		execute_command();
-		break;
+		return;
 
 	// LOAD INTMASK
 	case 0x06:
@@ -395,9 +426,10 @@ bool i82730_device::dscmd_endrow()
 
 bool i82730_device::dscmd_eof()
 {
-	LOGMASKED(LOG_DATASTREAM, "Executing datastream command EOF - not implemented\n");
+	LOGMASKED(LOG_DATASTREAM, "Executing datastream command EOF\n");
 
-	return false;
+	m_eof_hit = true;
+	return true;
 }
 
 bool i82730_device::dscmd_eol()
@@ -552,10 +584,14 @@ bool i82730_device::dscmd_repeat(uint8_t param)
 
 	while (param--)
 	{
-		if (--m_dma_count && m_row_count < 200)
-			m_row[m_row_count++] = data;
-		else
+		// Same accounting as the data-word path in load_row: stop once the DMA
+		// count is spent (or the row buffer is full), storing exactly
+		// m_dma_count characters -- do not pre-decrement past the last slot.
+		if (m_dma_count == 0 || m_row_count >= 200)
 			return true;
+
+		m_row[m_row_count++] = data;
+		m_dma_count--;
 	}
 
 	return false;
@@ -652,6 +688,32 @@ void i82730_device::load_row()
 
 	while (!finished)
 	{
+		// MAX DMA COUNT is the exact number of character words to DMA into this
+		// row. Terminate BEFORE reading another word once the count is spent --
+		// do not consume an extra "terminator" word from the stream. This
+		// matters in both list layouts:
+		//   - auto_line_feed = 0 (menu): each row is a separate string of
+		//     exactly 80 words with no EOL command (reason=dma-exhaust). We must
+		//     store all 80 (the 80th = screen column 79, the right menu border)
+		//     and then load the next string pointer from the list.
+		//   - auto_line_feed = 1 (boot console): the string is CONTINUOUS across
+		//     rows, so over-reading even one word per row (an earlier
+		//     post-decrement fix did) skips a character and shifts every
+		//     following row left, splitting words like "READING" across two
+		//     lines. Consuming exactly m_dma_count words keeps the stream
+		//     aligned.
+		if (m_dma_count == 0)
+		{
+			if (!m_auto_line_feed)
+			{
+				m_sptr = (read_word(m_lptr + 2) << 16) | read_word(m_lptr);
+				m_lptr += 4;
+			}
+
+			finished = true;
+			break;
+		}
+
 		uint16_t data = read_word(m_sptr);
 		m_sptr += 2;
 
@@ -661,29 +723,17 @@ void i82730_device::load_row()
 		}
 		else
 		{
-			// fetch data
-			if (--m_dma_count > 0)
+			// store one character and account for it against the DMA count
+			if (m_row_count < 200)
 			{
-				if (m_row_count < 200)
-				{
-					m_row[m_row_count++] = data;
-				}
-				else
-				{
-					// buffer overrun
-					m_status |= DBOR;
-					update_interrupts();
-					finished = true;
-				}
+				m_row[m_row_count++] = data;
+				m_dma_count--;
 			}
 			else
 			{
-				if (!m_auto_line_feed)
-				{
-					m_sptr = (read_word(m_lptr + 2) << 16) | read_word(m_lptr);
-					m_lptr += 4;
-				}
-
+				// buffer overrun
+				m_status |= DBOR;
+				update_interrupts();
 				finished = true;
 			}
 		}
@@ -699,8 +749,9 @@ TIMER_CALLBACK_MEMBER( i82730_device::row_update )
 		// clear interrupt status flags
 		m_status &= (VDIP | DIP);
 
-		// clear field attribute mask
+		// clear field attribute mask and EOF flag
 		m_mb.field_attribute_mask = 0;
+		m_eof_hit = false;
 
 		// get listbase
 		if (m_list_switch == 0)
@@ -713,6 +764,7 @@ TIMER_CALLBACK_MEMBER( i82730_device::row_update )
 
 		// fetch initial row
 		m_row_index = 0;
+		m_current_row = 0;
 		m_row = &m_row_buffer[m_row_index][0];
 		load_row();
 	}
@@ -724,8 +776,23 @@ TIMER_CALLBACK_MEMBER( i82730_device::row_update )
 	{
 		uint8_t lc = (y - m_mb.vfldstrt) % (m_mb.lpr + 1);
 
-		// call driver
-		m_update_row_cb(m_bitmap, m_row, lc, y - m_mb.vsyncstp, m_row_count);
+		// Composite the hardware cursor. It shows on the character row it was
+		// positioned on by LD CUR POS (m_cursor[0].y), on the intra-row scan
+		// lines cur1strt..cur1stp, subject to its blink phase. Passing the
+		// column to the driver (or -1 for "no cursor here") lets the driver
+		// reverse-video that cell -- the device owns cursor position/blink,
+		// the driver owns pixel geometry.
+		int cursor_x = -1;
+		if (m_current_row == m_cursor[0].y && lc >= m_mb.cur1strt && lc <= m_mb.cur1stp && cursor_visible())
+			cursor_x = m_cursor[0].x;
+
+		// call driver (skip if row blanked by BLK_ROW or field terminated by EOF;
+		// fill the scanline with black so old bitmap pixels don't bleed through)
+		if (!m_mb.blk_row && !m_eof_hit)
+			m_update_row_cb(m_bitmap, m_row, lc, y - m_mb.vsyncstp, m_row_count, cursor_x);
+		else
+			for (int x = 0; x < m_bitmap.width(); x++)
+				m_bitmap.pix(y - m_mb.vsyncstp, x) = rgb_t::black();
 
 		// swap buffers at end of row
 		if (lc == m_mb.lpr)
@@ -737,7 +804,9 @@ TIMER_CALLBACK_MEMBER( i82730_device::row_update )
 			if (y == (m_mb.vfldstp - 1))
 				m_sptr = (read_word(m_cbp + 36) << 16) | read_word(m_cbp + 34);
 
-			load_row();
+			if (!m_eof_hit)
+				load_row();
+			m_current_row++;
 		}
 	}
 	else if (y >= m_mb.vfldstp && y < m_mb.vfldstp + m_mb.scroll_margin + 1)
@@ -748,25 +817,53 @@ TIMER_CALLBACK_MEMBER( i82730_device::row_update )
 	{
 		uint8_t lc = (y - (m_mb.vfldstp + m_mb.scroll_margin + 1)) % (m_mb.lpr + 1);
 
-		// call driver
-		m_update_row_cb(m_bitmap, m_row, lc, y - m_mb.vsyncstp, m_row_count);
+		// call driver (no cursor on the status row; skip if field terminated by EOF)
+		if (!m_eof_hit)
+			m_update_row_cb(m_bitmap, m_row, lc, y - m_mb.vsyncstp, m_row_count, -1);
+		else
+			for (int x = 0; x < m_bitmap.width(); x++)
+				m_bitmap.pix(y - m_mb.vsyncstp, x) = rgb_t::black();
 	}
-	else if (y == m_mb.vfldstp + m_mb.scroll_margin + 1 + m_mb.lpr + 1)
+	else
+	{
+		// vblank / off-field scanlines
+	}
+
+	// End-of-frame housekeeping: service a channel-attention command that was
+	// deferred while the display was active, and raise the periodic frame
+	// (EONF) interrupt. This must happen once per frame at vertical retrace.
+	//
+	// The natural trigger is one scanline past the status row
+	// (vfldstp + scroll_margin + 1 + lpr + 1); normally that lies in vertical
+	// blanking and row_update reaches it every frame. But a driver may program
+	// a field taller than the configured frame -- RC759 MYRESNAK's text page
+	// (entered by BB/HENT/HUSK) loads vfldstp=288, scroll_margin=31, lpr=15, so
+	// the trigger scanline is 288+31+1+15+1 = 336 while frame_length is only
+	// 312. row_update only walks y = 0..frame_length-1, so y never reaches 336,
+	// EONF is never set, no SINT is raised, and the driver's handshake
+	// ("set flag byte; OUT channel-attention (port 0x240); spin until the 82730
+	// interrupt handler clears the flag") spins forever -> the program appears
+	// to freeze. Clamp the trigger to the last physical scanline so the frame
+	// interrupt is generated exactly once per frame regardless of field
+	// geometry. Kept as a standalone check (not part of the y-range if/else
+	// chain above) so branch ordering can never shadow it when clamped into an
+	// earlier range.
+	int eof_line = m_mb.vfldstp + m_mb.scroll_margin + 1 + m_mb.lpr + 1;
+	if (eof_line > screen().height() - 1)
+		eof_line = screen().height() - 1;
+
+	if (y == eof_line)
 	{
 		// check ca latch
 		if (m_ca_latch)
 			attention();
 
-		// frame interrupt?
-		if ((screen().frame_number() % m_mb.frame_int_count) == 0)
+		// frame interrupt? (guard the modulo -- a zero count would divide by 0)
+		if (m_mb.frame_int_count && (screen().frame_number() % m_mb.frame_int_count) == 0)
 			m_status |= EONF;
 
 		// check interrupts
 		update_interrupts();
-	}
-	else
-	{
-		// vblank
 	}
 
 	// schedule next line (if enabled)
@@ -788,8 +885,10 @@ void i82730_device::ca_w(int state)
 
 	m_ca = state;
 
-	// check ca every cycle if the display isn't active
-	if (m_ca_latch && ((m_status & DIP) == 0))
+	// check ca every cycle if the display isn't active; once initialised the
+	// CPU can still issue commands (e.g. READ STATUS) while the display runs,
+	// so honour CA regardless of DIP after init. [rc750 experiment]
+	if (m_ca_latch && (m_initialized || ((m_status & DIP) == 0)))
 	{
 		if (!m_initialized)
 		{
