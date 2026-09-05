@@ -86,6 +86,7 @@ I82730_UPDATE_ROW( rc75x_state::txt_update_row )
 		return;
 	}
 
+
 	// The RC759 runs the 82730 in one of two configurations, selected by the
 	// mode block the CPU loads (there is no dedicated graphics bit -- the CPU
 	// swaps the whole mode block): text is 80 char/row with 10-scanline cells

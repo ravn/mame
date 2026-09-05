@@ -40,11 +40,15 @@
                           char generator (35 char/row, lpr=15); see rc75x.cpp
       medium-res graphics 280x256, 2 bits/pixel  (not emulated)
 
-    TODO:
-    - Needs better I82730 emulation: use the 32-entry IRGB palette + the
-      per-character palette-select bits instead of hard-coded black/white.
-    - Floppy I/O errors
-    - Many more things
+    KNOWN LIMITATIONS (2026-09):
+    - Color screen: 32-entry IRGB palette support is missing (currently
+      hard-coded amber/black for text mode).
+    - Medium-res graphics (280x256, 2 bits/pixel) not implemented.
+    - Soft scrolling via 82730 mode block not fully emulated.
+    - External devices: iSBX serial, Centronics parallel, SCSI, 8274 serial
+      (Partner), Ethernet 82586, Disk/Printer-Adaptor (DPC) not emulated.
+    - Floppy disk sharing with configurable lock period in NVRAM (for
+      shared floppy disks between RC759 machines) not implemented.
 
     Notes:
     - Press SPACE during self-test for an extended menu
